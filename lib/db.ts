@@ -4,9 +4,11 @@ let _client: Client | null = null;
 
 export function db(): Client {
   if (!_client) {
-    const url = process.env.TURSO_DATABASE_URL;
+    const rawUrl = process.env.TURSO_DATABASE_URL;
     const authToken = process.env.TURSO_AUTH_TOKEN;
-    if (!url) throw new Error("Missing TURSO_DATABASE_URL");
+    if (!rawUrl) throw new Error("Missing TURSO_DATABASE_URL");
+    // @libsql/client/web needs https:// not libsql://
+    const url = rawUrl.replace(/^libsql:\/\//, "https://");
     _client = createClient({ url, authToken });
   }
   return _client;
