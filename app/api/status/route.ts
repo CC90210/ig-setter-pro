@@ -15,14 +15,17 @@ export async function GET() {
   let tursoError = "";
   try {
     const url = process.env.TURSO_DATABASE_URL;
-    if (!url) throw new Error("TURSO_DATABASE_URL not set");
+    if (!url) throw new Error("TURSO_DATABASE_URL not set (env empty)");
     const token = process.env.TURSO_AUTH_TOKEN;
-    if (!token) throw new Error("TURSO_AUTH_TOKEN not set");
+    if (!token) throw new Error("TURSO_AUTH_TOKEN not set (env empty)");
     await db().execute("SELECT 1");
     checks.turso = true;
   } catch (e) {
     checks.turso = false;
-    tursoError = e instanceof Error ? e.message : String(e);
+    const urlHint = process.env.TURSO_DATABASE_URL
+      ? `url_starts=${process.env.TURSO_DATABASE_URL.substring(0, 15)}...`
+      : "url=MISSING";
+    tursoError = `${e instanceof Error ? e.message : String(e)} | ${urlHint}`;
   }
 
   // Check n8n (env configured)
