@@ -38,16 +38,31 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "N8N_OVERRIDE_WEBHOOK_URL not configured" }, { status: 500 });
   }
 
-  const n8nRes = await fetch(n8nWebhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      ig_thread_id: thread.ig_thread_id,
-      ig_user_id: thread.ig_user_id,
-      account_id: thread.account_id,
-      message: message.trim(),
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
+
+  let n8nRes: Response;
+  try {
+    n8nRes = await fetch(n8nWebhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ig_thread_id: thread.ig_thread_id,
+        ig_user_id: thread.ig_user_id,
+        account_id: thread.account_id,
+        message: message.trim(),
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    clearTimeout(timeoutId);
+    const isTimeout = err instanceof Error && err.name === "AbortError";
+    return NextResponse.json(
+      { error: isTimeout ? "n8n request timed out" : "Failed to reach n8n" },
+      { status: 502 }
+    );
+  }
+  clearTimeout(timeoutId);
 
   if (!n8nRes.ok) {
     return NextResponse.json({ error: "Failed to send via n8n" }, { status: 502 });

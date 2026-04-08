@@ -8,6 +8,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (!process.env.FB_APP_ID || !process.env.FB_APP_SECRET) {
+    return NextResponse.json(
+      { error: "FB_APP_ID and FB_APP_SECRET are not configured" },
+      { status: 501 }
+    );
+  }
+
   // Find accounts with tokens expiring in the next 7 days
   const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 

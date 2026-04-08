@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 interface StatusChecks {
-  supabase: boolean;
+  turso: boolean;
   n8n: boolean;
   anthropic: boolean;
   instagram: boolean;

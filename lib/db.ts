@@ -124,10 +124,15 @@ export interface SequenceEnrollment {
   completed_at: string | null;
 }
 
-// ─── Helper: generate UUID ──────────────────────────────────────────────────
+// ─── Helper: generate ID matching DB default lower(hex(randomblob(16))) ─────
+// crypto.randomUUID() produces a 36-char UUID with dashes which differs from
+// the 32-char lowercase hex the schema uses as its DEFAULT. All app-side
+// INSERT statements must use this function so IDs are format-consistent.
 
 export function uuid(): string {
-  return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 // ─── Queries ─────────────────────────────────────────────────────────────────
