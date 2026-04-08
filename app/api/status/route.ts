@@ -11,10 +11,11 @@ export async function GET() {
 
   // Check Turso
   try {
-    await db().execute("SELECT id FROM accounts LIMIT 1");
+    await db().execute("SELECT 1");
     checks.turso = true;
-  } catch {
+  } catch (e) {
     checks.turso = false;
+    console.error("Turso check failed:", e instanceof Error ? e.message : e);
   }
 
   // Check n8n (env configured)
@@ -23,7 +24,7 @@ export async function GET() {
   // Check Anthropic (env configured)
   checks.anthropic = !!process.env.ANTHROPIC_API_KEY;
 
-  // Check Instagram
+  // Check Instagram (IG tokens stored in accounts table — just need Turso working)
   checks.instagram = !!process.env.IG_ACCESS_TOKEN || checks.turso;
 
   const ok = Object.values(checks).every(Boolean);
