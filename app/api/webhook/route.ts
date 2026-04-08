@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+import { db, uuid } from "@/lib/db";
 
 const AVATAR_COLORS = [
   "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7",
@@ -37,9 +30,7 @@ export async function GET(req: NextRequest) {
 
 // POST — Receives cleaned DM payload from n8n
 export async function POST(req: NextRequest) {
-  const supabase = getSupabase();
   const secret = req.headers.get("x-webhook-secret");
-
   if (secret !== process.env.WEBHOOK_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -69,112 +60,172 @@ export async function POST(req: NextRequest) {
   const avatarColor = usernameToColor(body.username);
   const avatarInitial = (body.username || "?")[0].toUpperCase();
 
-  // Upsert thread
-  const { data: thread } = await supabase
-    .from("dm_threads")
-    .upsert(
-      {
-        account_id: body.account_id,
-        ig_thread_id: body.ig_thread_id,
-        ig_user_id: body.ig_user_id,
-        username: body.username,
-        display_name: body.display_name || body.username,
-        avatar_initial: avatarInitial,
-        avatar_color: avatarColor,
-        status: body.status || "active",
-        ai_status: body.ai_status || "active",
-        last_message: body.message,
-        last_timestamp: now,
-        pending_ai_draft: body.pending_ai_draft,
-        updated_at: now,
-      },
-      { onConflict: "ig_thread_id" }
-    )
-    .select("id, message_count")
-    .single();
+  // Check if thread exists
+  const existingThread = await db().execute({
+    sql: "SELECT id, message_count FROM dm_threads WHERE ig_thread_id = ? LIMIT 1",
+    args: [body.ig_thread_id],
+  });
 
-  if (!thread) {
-    return NextResponse.json({ error: "Failed to upsert thread" }, { status: 500 });
+  let threadId: string;
+  let messageCount: number;
+
+  if (existingThread.rows.length > 0) {
+    const t = existingThread.rows[0] as unknown as { id: string; message_count: number };
+    threadId = t.id;
+    messageCount = t.message_count || 0;
+
+    await db().execute({
+      sql: `UPDATE dm_threads SET ig_user_id = ?, username = ?, display_name = ?, avatar_initial = ?, avatar_color = ?,
+            status = ?, ai_status = ?, last_message = ?, last_timestamp = ?, pending_ai_draft = ?, updated_at = ?
+            WHERE id = ?`,
+      args: [
+        body.ig_user_id,
+        body.username,
+        body.display_name || body.username,
+        avatarInitial,
+        avatarColor,
+        body.status || "active",
+        body.ai_status || "active",
+        body.message,
+        now,
+        body.pending_ai_draft,
+        now,
+        threadId,
+      ],
+    });
+  } else {
+    threadId = uuid();
+    messageCount = 0;
+
+    await db().execute({
+      sql: `INSERT INTO dm_threads (id, account_id, ig_thread_id, ig_user_id, username, display_name, avatar_initial, avatar_color,
+            status, ai_status, last_message, last_timestamp, pending_ai_draft, message_count, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      args: [
+        threadId,
+        body.account_id,
+        body.ig_thread_id,
+        body.ig_user_id,
+        body.username,
+        body.display_name || body.username,
+        avatarInitial,
+        avatarColor,
+        body.status || "active",
+        body.ai_status || "active",
+        body.message,
+        now,
+        body.pending_ai_draft,
+        now,
+        now,
+      ],
+    });
   }
 
   // Insert message
-  await supabase.from("dm_messages").insert({
-    thread_id: thread.id,
-    account_id: body.account_id,
-    ig_message_id: body.ig_message_id || null,
-    direction: body.direction,
-    content: body.message,
-    sent_at: now,
-    is_ai: body.is_ai || false,
-    override: false,
+  await db().execute({
+    sql: `INSERT INTO dm_messages (id, thread_id, account_id, ig_message_id, direction, content, sent_at, is_ai, override)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+    args: [
+      uuid(),
+      threadId,
+      body.account_id,
+      body.ig_message_id || null,
+      body.direction,
+      body.message,
+      now,
+      body.is_ai ? 1 : 0,
+    ],
   });
 
   // Update message count
-  await supabase
-    .from("dm_threads")
-    .update({ message_count: (thread.message_count || 0) + 1 })
-    .eq("id", thread.id);
+  await db().execute({
+    sql: "UPDATE dm_threads SET message_count = ? WHERE id = ?",
+    args: [messageCount + 1, threadId],
+  });
 
   // Upsert daily stats
   const today = now.split("T")[0];
-  const statsUpdate: Record<string, number> = {};
+  const statsResult = await db().execute({
+    sql: "SELECT * FROM daily_stats WHERE account_id = ? AND date = ? LIMIT 1",
+    args: [body.account_id, today],
+  });
 
-  if (body.direction === "inbound") {
-    statsUpdate.total_handled = 1;
-    statsUpdate.replies_received = 1;
-  }
-  if (body.ai_status === "qualified") statsUpdate.qualified = 1;
-  if (body.ai_status === "booked") statsUpdate.booked = 1;
-  if (body.ai_status === "closed") statsUpdate.closed = 1;
-  if (body.is_ai) statsUpdate.ai_drafts = 1;
-
-  const { data: existingStats } = await supabase
-    .from("daily_stats")
-    .select("*")
-    .eq("account_id", body.account_id)
-    .eq("date", today)
-    .maybeSingle();
-
-  if (existingStats) {
+  if (statsResult.rows.length > 0) {
+    const existing = statsResult.rows[0] as unknown as Record<string, number> & { id: string };
     const updates: Record<string, number> = {};
-    for (const [key, val] of Object.entries(statsUpdate)) {
-      updates[key] = (existingStats[key] || 0) + val;
+
+    if (body.direction === "inbound") {
+      updates.total_handled = (existing.total_handled || 0) + 1;
+      updates.replies_received = (existing.replies_received || 0) + 1;
     }
-    await supabase.from("daily_stats").update(updates).eq("id", existingStats.id);
+    if (body.ai_status === "qualified") updates.qualified = (existing.qualified || 0) + 1;
+    if (body.ai_status === "booked") updates.booked = (existing.booked || 0) + 1;
+    if (body.ai_status === "closed") updates.closed = (existing.closed || 0) + 1;
+    if (body.is_ai) updates.ai_drafts = (existing.ai_drafts || 0) + 1;
+
+    if (Object.keys(updates).length > 0) {
+      const setClauses = Object.keys(updates).map((k) => `${k} = ?`).join(", ");
+      await db().execute({
+        sql: `UPDATE daily_stats SET ${setClauses} WHERE id = ?`,
+        args: [...Object.values(updates), existing.id],
+      });
+    }
   } else {
-    await supabase.from("daily_stats").insert({
+    const newStats: Record<string, number | string> = {
+      id: uuid(),
       account_id: body.account_id,
       date: today,
-      ...statsUpdate,
+      total_handled: body.direction === "inbound" ? 1 : 0,
+      qualified: body.ai_status === "qualified" ? 1 : 0,
+      booked: body.ai_status === "booked" ? 1 : 0,
+      closed: body.ai_status === "closed" ? 1 : 0,
+      revenue: 0,
+      replies_received: body.direction === "inbound" ? 1 : 0,
+      deals_progressed: 0,
+      auto_sent: 0,
+      ai_drafts: body.is_ai ? 1 : 0,
+    };
+
+    await db().execute({
+      sql: `INSERT INTO daily_stats (id, account_id, date, total_handled, qualified, booked, closed, revenue, replies_received, deals_progressed, auto_sent, ai_drafts)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        newStats.id, newStats.account_id, newStats.date,
+        newStats.total_handled, newStats.qualified, newStats.booked,
+        newStats.closed, newStats.revenue, newStats.replies_received,
+        newStats.deals_progressed, newStats.auto_sent, newStats.ai_drafts,
+      ],
     });
   }
 
   // Check automation rules (if inbound)
   if (body.direction === "inbound") {
-    await checkAutomationRules(supabase, body.account_id, thread.id, body.message);
+    await checkAutomationRules(body.account_id, threadId, body.message);
   }
 
-  return NextResponse.json({ ok: true, thread_id: thread.id });
+  return NextResponse.json({ ok: true, thread_id: threadId });
 }
 
-async function checkAutomationRules(
-  supabase: ReturnType<typeof getSupabase>,
-  accountId: string,
-  threadId: string,
-  message: string
-) {
-  const { data: rules } = await supabase
-    .from("automation_rules")
-    .select("*")
-    .eq("account_id", accountId)
-    .eq("is_active", true)
-    .order("priority", { ascending: true });
+async function checkAutomationRules(accountId: string, threadId: string, message: string) {
+  const rulesResult = await db().execute({
+    sql: "SELECT * FROM automation_rules WHERE account_id = ? AND is_active = 1 ORDER BY priority ASC",
+    args: [accountId],
+  });
 
-  if (!rules?.length) return;
+  if (!rulesResult.rows.length) return;
 
   const lowerMsg = message.toLowerCase();
 
-  for (const rule of rules) {
+  for (const ruleRow of rulesResult.rows) {
+    const rule = ruleRow as unknown as {
+      id: string;
+      trigger_type: string;
+      trigger_value: string;
+      action_type: string;
+      action_value: string;
+      times_triggered: number;
+    };
+
     let triggered = false;
 
     switch (rule.trigger_type) {
@@ -185,11 +236,12 @@ async function checkAutomationRules(
           .some((keyword: string) => lowerMsg.includes(keyword));
         break;
       case "first_message": {
-        const { count } = await supabase
-          .from("dm_messages")
-          .select("*", { count: "exact", head: true })
-          .eq("thread_id", threadId);
-        triggered = (count || 0) <= 1;
+        const countResult = await db().execute({
+          sql: "SELECT COUNT(*) as cnt FROM dm_messages WHERE thread_id = ?",
+          args: [threadId],
+        });
+        const cnt = (countResult.rows[0] as unknown as { cnt: number }).cnt;
+        triggered = cnt <= 1;
         break;
       }
       case "story_reply":
@@ -198,32 +250,38 @@ async function checkAutomationRules(
     }
 
     if (triggered) {
-      // Increment trigger count
-      await supabase
-        .from("automation_rules")
-        .update({ times_triggered: (rule.times_triggered || 0) + 1 })
-        .eq("id", rule.id);
+      await db().execute({
+        sql: "UPDATE automation_rules SET times_triggered = ? WHERE id = ?",
+        args: [(rule.times_triggered || 0) + 1, rule.id],
+      });
 
-      // Execute action
       switch (rule.action_type) {
         case "change_status":
-          await supabase
-            .from("dm_threads")
-            .update({ status: rule.action_value })
-            .eq("id", threadId);
+          await db().execute({
+            sql: "UPDATE dm_threads SET status = ? WHERE id = ?",
+            args: [rule.action_value, threadId],
+          });
           break;
-        case "start_sequence":
-          await supabase.from("sequence_enrollments").upsert(
-            {
-              sequence_id: rule.action_value,
-              thread_id: threadId,
-              current_step: 1,
-              status: "active",
-              next_step_at: new Date().toISOString(),
-            },
-            { onConflict: "sequence_id,thread_id" }
-          );
+        case "start_sequence": {
+          const now = new Date().toISOString();
+          const enrollResult = await db().execute({
+            sql: "SELECT id FROM sequence_enrollments WHERE sequence_id = ? AND thread_id = ? LIMIT 1",
+            args: [rule.action_value, threadId],
+          });
+          if (enrollResult.rows.length > 0) {
+            await db().execute({
+              sql: "UPDATE sequence_enrollments SET current_step = 1, status = 'active', next_step_at = ? WHERE sequence_id = ? AND thread_id = ?",
+              args: [now, rule.action_value, threadId],
+            });
+          } else {
+            await db().execute({
+              sql: `INSERT INTO sequence_enrollments (id, sequence_id, thread_id, current_step, status, next_step_at, enrolled_at)
+                    VALUES (?, ?, ?, 1, 'active', ?, ?)`,
+              args: [uuid(), rule.action_value, threadId, now, now],
+            });
+          }
           break;
+        }
       }
       // Only fire the highest-priority matching rule
       break;

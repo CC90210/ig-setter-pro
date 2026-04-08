@@ -443,10 +443,5 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "staticData": null,
-  "tags": [
-    { "name": "instagram" },
-    { "name": "ai" },
-    { "name": "automation" }
-  ]
+  "staticData": null
 }

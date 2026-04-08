@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+import { db, uuid } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
-  const supabase = getSupabase();
   let body: { thread_id: string; message: string };
 
   try {
@@ -25,17 +17,22 @@ export async function POST(req: NextRequest) {
   }
 
   // Fetch thread with account info
-  const { data: thread, error: threadError } = await supabase
-    .from("dm_threads")
-    .select("ig_thread_id, ig_user_id, username, account_id")
-    .eq("id", thread_id)
-    .single();
+  const threadResult = await db().execute({
+    sql: "SELECT ig_thread_id, ig_user_id, username, account_id FROM dm_threads WHERE id = ? LIMIT 1",
+    args: [thread_id],
+  });
 
-  if (threadError || !thread) {
+  if (!threadResult.rows.length) {
     return NextResponse.json({ error: "Thread not found" }, { status: 404 });
   }
 
-  // Get account's n8n override URL (fall back to env var)
+  const thread = threadResult.rows[0] as unknown as {
+    ig_thread_id: string;
+    ig_user_id: string;
+    username: string;
+    account_id: string;
+  };
+
   const n8nWebhookUrl = process.env.N8N_OVERRIDE_WEBHOOK_URL;
   if (!n8nWebhookUrl) {
     return NextResponse.json({ error: "N8N_OVERRIDE_WEBHOOK_URL not configured" }, { status: 500 });
@@ -53,35 +50,23 @@ export async function POST(req: NextRequest) {
   });
 
   if (!n8nRes.ok) {
-    const errText = await n8nRes.text();
-    console.error("n8n override webhook error:", errText);
     return NextResponse.json({ error: "Failed to send via n8n" }, { status: 502 });
   }
 
   const now = new Date().toISOString();
 
   // Record outbound message
-  await supabase.from("dm_messages").insert({
-    thread_id,
-    account_id: thread.account_id,
-    ig_message_id: null,
-    direction: "outbound",
-    content: message.trim(),
-    sent_at: now,
-    is_ai: false,
-    override: true,
+  await db().execute({
+    sql: `INSERT INTO dm_messages (id, thread_id, account_id, ig_message_id, direction, content, sent_at, is_ai, override)
+          VALUES (?, ?, ?, NULL, 'outbound', ?, ?, 0, 1)`,
+    args: [uuid(), thread_id, thread.account_id, message.trim(), now],
   });
 
   // Clear pending draft and update thread
-  await supabase
-    .from("dm_threads")
-    .update({
-      pending_ai_draft: null,
-      last_message: message.trim(),
-      last_timestamp: now,
-      updated_at: now,
-    })
-    .eq("id", thread_id);
+  await db().execute({
+    sql: "UPDATE dm_threads SET pending_ai_draft = NULL, last_message = ?, last_timestamp = ?, updated_at = ? WHERE id = ?",
+    args: [message.trim(), now, now, thread_id],
+  });
 
   return NextResponse.json({ ok: true });
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { DMThread, DMMessage, fetchMessages, subscribeToMessages } from "@/lib/supabase";
+import { DMThread, DMMessage, fetchMessages } from "@/lib/db";
+import { startPolling } from "@/lib/types";
 
 interface ConversationChainProps {
   thread: DMThread;
@@ -20,8 +21,8 @@ export default function ConversationChain({ thread }: ConversationChainProps) {
 
   useEffect(() => {
     loadMessages();
-    const sub = subscribeToMessages(thread.id, () => loadMessages());
-    return () => { sub.unsubscribe(); };
+    const stop = startPolling(() => loadMessages(), 3000);
+    return stop;
   }, [thread.id, loadMessages]);
 
   useEffect(() => {

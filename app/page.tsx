@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { DMThread, Account, fetchThreads, fetchAccounts, subscribeToThreads } from "@/lib/supabase";
+import { DMThread, Account, fetchThreads, fetchAccounts } from "@/lib/db";
+import { startPolling } from "@/lib/types";
 import StatusBanner from "@/components/StatusBanner";
 import StatsBar from "@/components/StatsBar";
 import ThreadFeed from "@/components/ThreadFeed";
@@ -52,8 +53,8 @@ export default function Home() {
   useEffect(() => {
     if (!activeAccountId) return;
     loadThreads();
-    const sub = subscribeToThreads(() => loadThreads());
-    return () => { sub.unsubscribe(); };
+    const stop = startPolling(() => loadThreads(), 3000);
+    return stop;
   }, [activeAccountId, loadThreads]);
 
   const selectedThread = threads.find((t) => t.id === selectedId) || null;
@@ -85,7 +86,7 @@ export default function Home() {
           {activeAccount && (
             <AutoSendToggle
               accountId={activeAccount.id}
-              enabled={activeAccount.auto_send_enabled}
+              enabled={Boolean(activeAccount.auto_send_enabled)}
               onToggle={() => loadAccounts()}
             />
           )}

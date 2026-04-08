@@ -1,27 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+import { db, uuid } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
-  const supabase = getSupabase();
   const accountId = req.nextUrl.searchParams.get("account_id");
 
-  let query = supabase.from("automation_rules").select("*").order("priority", { ascending: true });
-  if (accountId) query = query.eq("account_id", accountId);
-
-  const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ rules: data });
+  try {
+    let result;
+    if (accountId) {
+      result = await db().execute({
+        sql: "SELECT * FROM automation_rules WHERE account_id = ? ORDER BY priority ASC",
+        args: [accountId],
+      });
+    } else {
+      result = await db().execute("SELECT * FROM automation_rules ORDER BY priority ASC");
+    }
+    return NextResponse.json({ rules: result.rows });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = getSupabase();
   let body: {
     account_id: string;
     name: string;
@@ -38,30 +37,40 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
-    .from("automation_rules")
-    .insert({
-      account_id: body.account_id,
-      name: body.name,
-      trigger_type: body.trigger_type,
-      trigger_value: body.trigger_value,
-      action_type: body.action_type,
-      action_value: body.action_value,
-      priority: body.priority ?? 0,
-    })
-    .select()
-    .single();
+  const id = uuid();
+  const now = new Date().toISOString();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ rule: data }, { status: 201 });
+  try {
+    await db().execute({
+      sql: `INSERT INTO automation_rules (id, account_id, name, trigger_type, trigger_value, action_type, action_value, priority, is_active, times_triggered, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)`,
+      args: [
+        id,
+        body.account_id,
+        body.name,
+        body.trigger_type,
+        body.trigger_value,
+        body.action_type,
+        body.action_value,
+        body.priority ?? 0,
+        now,
+        now,
+      ],
+    });
+    return NextResponse.json({ rule: { id } }, { status: 201 });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }
 
 export async function DELETE(req: NextRequest) {
-  const supabase = getSupabase();
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  const { error } = await supabase.from("automation_rules").delete().eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  try {
+    await db().execute({ sql: "DELETE FROM automation_rules WHERE id = ?", args: [id] });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
 }

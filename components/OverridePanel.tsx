@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DMThread } from "@/lib/supabase";
+import { DMThread } from "@/lib/db";
 
 interface OverridePanelProps {
   thread: DMThread;

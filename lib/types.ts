@@ -58,3 +58,11 @@ RULES:
 - Reference conversation history to show you remember what they've said.`;
 
 export const DEFAULT_SYSTEM_PROMPT = NEPQ_SYSTEM_PROMPT;
+
+// ─── Polling hook (replaces Supabase Realtime) ──────────────────────────────
+
+export function startPolling(callback: () => void, intervalMs: number = 3000): () => void {
+  // Returns a cleanup function — pass the return value to useEffect's return
+  const id = setInterval(callback, intervalMs);
+  return () => clearInterval(id);
+}

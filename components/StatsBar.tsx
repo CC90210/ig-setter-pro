@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DailyStats, fetchTodayStats, subscribeToStats } from "@/lib/supabase";
+import { DailyStats, fetchTodayStats } from "@/lib/db";
+import { startPolling } from "@/lib/types";
 
 interface StatsBarProps {
   accountId: string | null;
@@ -13,10 +14,10 @@ export default function StatsBar({ accountId }: StatsBarProps) {
   useEffect(() => {
     if (!accountId) return;
     fetchTodayStats(accountId).then(setStats).catch(() => {});
-    const sub = subscribeToStats(() => {
+    const stop = startPolling(() => {
       fetchTodayStats(accountId).then(setStats).catch(() => {});
-    });
-    return () => { sub.unsubscribe(); };
+    }, 5000);
+    return stop;
   }, [accountId]);
 
   return (

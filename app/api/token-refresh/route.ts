@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+import { db } from "@/lib/db";
 
 // POST — Called by n8n cron to refresh expiring tokens
 export async function POST(req: NextRequest) {
@@ -15,26 +8,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = getSupabase();
-
   // Find accounts with tokens expiring in the next 7 days
   const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: accounts, error } = await supabase
-    .from("accounts")
-    .select("id, ig_username, ig_access_token, token_expires_at")
-    .eq("is_active", true)
-    .lt("token_expires_at", sevenDaysFromNow);
+  const accountsResult = await db().execute({
+    sql: "SELECT id, ig_username, ig_access_token, token_expires_at FROM accounts WHERE is_active = 1 AND token_expires_at < ?",
+    args: [sevenDaysFromNow],
+  });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const accounts = accountsResult.rows as unknown as Array<{
+    id: string;
+    ig_username: string;
+    ig_access_token: string;
+    token_expires_at: string;
+  }>;
 
   const results: Array<{ account: string; success: boolean; error?: string }> = [];
 
-  for (const account of accounts || []) {
+  for (const account of accounts) {
     try {
-      // Exchange for long-lived token via Facebook Graph API
       const res = await fetch(
         `https://graph.facebook.com/v19.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.FB_APP_ID}&client_secret=${process.env.FB_APP_SECRET}&fb_exchange_token=${account.ig_access_token}`
       );
@@ -46,19 +38,15 @@ export async function POST(req: NextRequest) {
       }
 
       const data = await res.json();
-      const newToken = data.access_token;
-      const expiresIn = data.expires_in || 5184000; // Default 60 days
-
+      const newToken = data.access_token as string;
+      const expiresIn = (data.expires_in as number) || 5184000; // Default 60 days
       const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+      const now = new Date().toISOString();
 
-      await supabase
-        .from("accounts")
-        .update({
-          ig_access_token: newToken,
-          token_expires_at: expiresAt,
-          token_refreshed_at: new Date().toISOString(),
-        })
-        .eq("id", account.id);
+      await db().execute({
+        sql: "UPDATE accounts SET ig_access_token = ?, token_expires_at = ?, updated_at = ? WHERE id = ?",
+        args: [newToken, expiresAt, now, account.id],
+      });
 
       results.push({ account: account.ig_username, success: true });
     } catch (err) {

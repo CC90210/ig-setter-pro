@@ -1,24 +1,20 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { db } from "@/lib/db";
 
 export async function GET() {
   const checks = {
-    supabase: false,
+    turso: false,
     n8n: false,
     anthropic: false,
     instagram: false,
   };
 
-  // Check Supabase
+  // Check Turso
   try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-    const { error } = await supabase.from("accounts").select("id").limit(1);
-    checks.supabase = !error;
+    await db().execute("SELECT id FROM accounts LIMIT 1");
+    checks.turso = true;
   } catch {
-    checks.supabase = false;
+    checks.turso = false;
   }
 
   // Check n8n (env configured)
@@ -27,8 +23,8 @@ export async function GET() {
   // Check Anthropic (env configured)
   checks.anthropic = !!process.env.ANTHROPIC_API_KEY;
 
-  // Check Instagram (at least env vars or accounts in DB)
-  checks.instagram = !!process.env.IG_ACCESS_TOKEN || checks.supabase;
+  // Check Instagram
+  checks.instagram = !!process.env.IG_ACCESS_TOKEN || checks.turso;
 
   const ok = Object.values(checks).every(Boolean);
   return NextResponse.json({ ok, checks });
