@@ -1,0 +1,452 @@
+{
+  "name": "ig-setter-pro — Enhanced IG DM Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ig-dm-inbound",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-inbound",
+      "name": "Webhook — Meta IG DM",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "ig-dm-inbound"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body?.['hub.mode'] }}",
+              "rightValue": "subscribe",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "is-verification",
+      "name": "Is Verification Request?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body?.['hub.challenge'] }}"
+      },
+      "id": "respond-verify",
+      "name": "Respond — Verify OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [640, 180]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract DM data from Meta webhook payload\nconst body = $input.first().json.body;\nconst entry = body?.entry?.[0];\nconst messaging = entry?.messaging?.[0];\n\nif (!messaging?.message?.text) {\n  return [{ json: { skip: true } }];\n}\n\nconst senderId = messaging.sender.id;\nconst pageId = entry.id;\nconst messageText = messaging.message.text;\nconst messageId = messaging.message.mid;\n\nreturn [{\n  json: {\n    ig_user_id: senderId,\n    ig_page_id: pageId,\n    ig_thread_id: `${pageId}_${senderId}`,\n    message_text: messageText,\n    ig_message_id: messageId,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "extract-dm",
+      "name": "Extract DM Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 420]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.ig_user_id }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "fields", "value": "name,username" },
+            { "name": "access_token", "value": "={{ $credentials.httpQueryAuth.value }}" }
+          ]
+        },
+        "options": { "timeout": 10000 }
+      },
+      "id": "get-username",
+      "name": "Get IG Username",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [860, 420],
+      "credentials": {
+        "httpQueryAuth": { "id": "IG_TOKEN", "name": "Instagram Access Token" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge DM data with profile info\nconst dm = $('Extract DM Data').first().json;\nconst profile = $input.first().json;\n\nreturn [{\n  json: {\n    ...dm,\n    username: profile.username || 'unknown',\n    display_name: profile.name || profile.username || 'Unknown'\n  }\n}];"
+      },
+      "id": "merge-profile",
+      "name": "Merge Profile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 420]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.DASHBOARD_URL }}/api/webhook",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "thread_id", "value": "={{ $json.ig_thread_id }}" },
+            { "name": "limit", "value": "20" }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-webhook-secret", "value": "={{ $env.WEBHOOK_SECRET }}" }
+          ]
+        },
+        "options": { "timeout": 10000 }
+      },
+      "id": "fetch-history",
+      "name": "Fetch Conversation History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 420],
+      "notes": "Fetches last 20 messages from Supabase via dashboard API for Claude context"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build conversation history for Claude context\nconst dm = $('Merge Profile').first().json;\nconst historyResponse = $input.first().json;\nconst messages = historyResponse?.messages || [];\n\n// Format conversation history\nlet conversationHistory = '';\nif (messages.length > 0) {\n  conversationHistory = '\\n\\nPREVIOUS CONVERSATION HISTORY:\\n';\n  for (const msg of messages) {\n    const role = msg.direction === 'inbound' ? dm.username : 'You (AI/Agent)';\n    conversationHistory += `${role}: ${msg.content}\\n`;\n  }\n}\n\nreturn [{\n  json: {\n    ...dm,\n    conversation_history: conversationHistory,\n    message_count: messages.length\n  }\n}];"
+      },
+      "id": "build-context",
+      "name": "Build Claude Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 420],
+      "notes": "Combines conversation history with current message for contextually-aware AI replies"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $credentials.httpHeaderAuth.value }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 300,\n  \"system\": \"You are a world-class Instagram DM closer using the NEPQ (Neuro-Emotional Persuasion Questioning) sales framework.\\n\\nCORE PRINCIPLES:\\n- Never sound salesy. Be conversational, warm, and genuinely curious.\\n- Use 'I'm not sure if...' framing to kill resistance.\\n- Ask questions instead of pitching. Lead with their problem, not your product.\\n- Pattern interrupt: Break expected sales patterns. Be surprisingly human.\\n- Mirror their language and energy level.\\n\\nCONVERSATION FLOW:\\n1. CONNECT — Acknowledge their message warmly. Reference something specific they said.\\n2. QUALIFY — Ask about their situation with genuine curiosity.\\n3. PROBLEM AWARENESS — Help them articulate their pain.\\n4. SOLUTION BRIDGE — Only after they express the problem: 'I'm not sure if this would help, but...'\\n5. NEXT STEP — Soft close: 'Would it make sense to jump on a quick call?'\\n\\nRULES:\\n- Keep replies under 3 sentences. DMs are casual.\\n- Match their tone — casual if they're casual, professional if they're professional.\\n- Max one emoji per message, only if natural.\\n- If they seem cold, ask one more curious question then gracefully exit.\\n- If ready to buy/book, don't oversell — make the next step easy.\\n- Always end with a question to keep the conversation moving.\\n- REFERENCE CONVERSATION HISTORY to show you remember what they said.\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $json.conversation_history }}\\n\\nNEW MESSAGE from @{{ $json.username }}:\\n{{ $json.message_text }}\\n\\nDraft a reply. Be conversational and natural. Reference any relevant context from the conversation history above.\"\n    }\n  ]\n}",
+        "options": {
+          "timeout": 30000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 2,
+            "retryInterval": 3000
+          }
+        }
+      },
+      "id": "claude-reply",
+      "name": "Claude — Generate Reply (with History)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1740, 420],
+      "credentials": {
+        "httpHeaderAuth": { "id": "ANTHROPIC_KEY", "name": "Anthropic API Key" }
+      },
+      "notes": "ENHANCED: Sends full conversation history to Claude for contextually aware replies. Uses NEPQ sales framework. Retry enabled (2 retries, 3s interval)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $credentials.httpHeaderAuth.value }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-haiku-4-5-20251001\",\n  \"max_tokens\": 100,\n  \"system\": \"You are a lead classifier for Instagram DMs. Classify the conversation status based on the messages.\\n\\nReturn ONLY one of these values: active, qualified, booked, closed\\n\\n- active: General conversation, no buying signals yet\\n- qualified: Shows interest, asks about pricing/services/details, mentions a problem you can solve\\n- booked: Agreed to a call, meeting, or appointment\\n- closed: Deal done, payment made, or explicitly not interested (dead lead)\\n\\nRespond with ONLY the status word, nothing else.\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Classify this DM conversation:\\n\\n{{ $('Build Claude Context').first().json.conversation_history }}\\n\\nLatest message from @{{ $('Build Claude Context').first().json.username }}: {{ $('Build Claude Context').first().json.message_text }}\"\n    }\n  ]\n}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "claude-classify",
+      "name": "Claude — Classify Lead Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1740, 620],
+      "credentials": {
+        "httpHeaderAuth": { "id": "ANTHROPIC_KEY", "name": "Anthropic API Key" }
+      },
+      "notes": "ENHANCEMENT: AI-powered lead classification replaces keyword heuristics. Uses Haiku for speed/cost."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build final payload with AI reply + AI classification\nconst dm = $('Build Claude Context').first().json;\nconst replyResponse = $('Claude — Generate Reply (with History)').first().json;\nconst classifyResponse = $('Claude — Classify Lead Status').first().json;\n\n// Extract AI reply text\nconst aiReply = replyResponse?.content?.[0]?.text || 'Unable to generate reply';\n\n// Extract classification (clean it up)\nconst rawStatus = (classifyResponse?.content?.[0]?.text || 'active').trim().toLowerCase();\nconst validStatuses = ['active', 'qualified', 'booked', 'closed'];\nconst aiStatus = validStatuses.includes(rawStatus) ? rawStatus : 'active';\n\nreturn [{\n  json: {\n    account_id: dm.account_id || '',\n    ig_thread_id: dm.ig_thread_id,\n    ig_user_id: dm.ig_user_id,\n    ig_message_id: dm.ig_message_id,\n    username: dm.username,\n    display_name: dm.display_name,\n    message: dm.message_text,\n    direction: 'inbound',\n    status: aiStatus,\n    ai_status: aiStatus,\n    pending_ai_draft: aiReply,\n    is_ai: false,\n    ai_reply: aiReply,\n    message_count: dm.message_count\n  }\n}];"
+      },
+      "id": "build-payload",
+      "name": "Build Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1960, 420],
+      "notes": "Combines AI reply + AI classification into dashboard webhook payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DASHBOARD_URL }}/api/webhook",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-webhook-secret", "value": "={{ $env.WEBHOOK_SECRET }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "post-dashboard",
+      "name": "POST to Dashboard",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2180, 420]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $env.AUTO_SEND_ENABLED }}",
+              "rightValue": "true",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        }
+      },
+      "id": "check-auto-send",
+      "name": "Auto-Send Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2400, 420],
+      "notes": "ENHANCEMENT: Checks if auto-send is enabled for this account. If yes, sends the AI reply automatically via IG Graph API."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/me/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "access_token", "value": "={{ $credentials.httpQueryAuth.value }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $('Build Payload').first().json.ig_user_id }}\" },\n  \"message\": { \"text\": \"{{ $('Build Payload').first().json.ai_reply }}\" }\n}",
+        "options": {
+          "timeout": 15000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 1,
+            "retryInterval": 5000
+          }
+        }
+      },
+      "id": "auto-send-reply",
+      "name": "Auto-Send IG Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2620, 300],
+      "credentials": {
+        "httpQueryAuth": { "id": "IG_TOKEN", "name": "Instagram Access Token" }
+      },
+      "notes": "ENHANCEMENT: Auto-sends AI reply if auto-send is enabled"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"ok\": true }"
+      },
+      "id": "respond-ok",
+      "name": "Respond — OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2620, 500]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ig-dm-override",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-override",
+      "name": "Webhook — Override",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 700],
+      "webhookId": "ig-dm-override"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/me/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "access_token", "value": "={{ $credentials.httpQueryAuth.value }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"recipient\": { \"id\": \"{{ $json.body.ig_user_id }}\" },\n  \"message\": { \"text\": \"{{ $json.body.message }}\" }\n}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "send-override-reply",
+      "name": "Send IG Reply (Override)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 700],
+      "credentials": {
+        "httpQueryAuth": { "id": "IG_TOKEN", "name": "Instagram Access Token" }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 0 * * *" }]
+        }
+      },
+      "id": "cron-token-refresh",
+      "name": "Daily Token Refresh Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 900],
+      "notes": "ENHANCEMENT: Daily cron job that calls the dashboard token-refresh endpoint"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.DASHBOARD_URL }}/api/token-refresh",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-webhook-secret", "value": "={{ $env.WEBHOOK_SECRET }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "options": { "timeout": 30000 }
+      },
+      "id": "call-token-refresh",
+      "name": "Call Token Refresh API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 900]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "*/5 * * * *" }]
+        }
+      },
+      "id": "cron-sequence",
+      "name": "Sequence Executor (Every 5 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 1100],
+      "notes": "ENHANCEMENT: Executes pending sequence steps every 5 minutes"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/sequence_enrollments?status=eq.active&next_step_at=lte.{{ encodeURIComponent(new Date().toISOString()) }}&select=*,sequences(*),sequence_steps(*),dm_threads(*)",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" }
+          ]
+        },
+        "options": { "timeout": 15000 }
+      },
+      "id": "fetch-pending-sequences",
+      "name": "Fetch Pending Sequence Steps",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [420, 1100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process each pending sequence enrollment\nconst enrollments = $input.first().json;\nif (!Array.isArray(enrollments) || enrollments.length === 0) {\n  return [{ json: { skip: true, message: 'No pending sequence steps' } }];\n}\n\nconst results = [];\nfor (const enrollment of enrollments) {\n  const steps = enrollment.sequence_steps || [];\n  const currentStep = steps.find(s => s.step_order === enrollment.current_step);\n  \n  if (!currentStep) {\n    results.push({\n      json: {\n        enrollment_id: enrollment.id,\n        action: 'complete',\n        message: 'No more steps'\n      }\n    });\n    continue;\n  }\n\n  // Replace template variables\n  let messageText = currentStep.message_template;\n  if (enrollment.dm_threads) {\n    messageText = messageText\n      .replace('{{username}}', enrollment.dm_threads.username || '')\n      .replace('{{display_name}}', enrollment.dm_threads.display_name || '');\n  }\n\n  results.push({\n    json: {\n      enrollment_id: enrollment.id,\n      sequence_id: enrollment.sequence_id,\n      thread_id: enrollment.thread_id,\n      ig_user_id: enrollment.dm_threads?.ig_user_id,\n      current_step: enrollment.current_step,\n      total_steps: steps.length,\n      message: messageText,\n      action: 'send'\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "process-sequences",
+      "name": "Process Sequence Steps",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 1100]
+    }
+  ],
+  "connections": {
+    "Webhook — Meta IG DM": { "main": [[{ "node": "Is Verification Request?", "type": "main", "index": 0 }]] },
+    "Is Verification Request?": {
+      "main": [
+        [{ "node": "Respond — Verify OK", "type": "main", "index": 0 }],
+        [{ "node": "Extract DM Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract DM Data": { "main": [[{ "node": "Get IG Username", "type": "main", "index": 0 }]] },
+    "Get IG Username": { "main": [[{ "node": "Merge Profile", "type": "main", "index": 0 }]] },
+    "Merge Profile": { "main": [[{ "node": "Fetch Conversation History", "type": "main", "index": 0 }]] },
+    "Fetch Conversation History": { "main": [[{ "node": "Build Claude Context", "type": "main", "index": 0 }]] },
+    "Build Claude Context": {
+      "main": [[
+        { "node": "Claude — Generate Reply (with History)", "type": "main", "index": 0 },
+        { "node": "Claude — Classify Lead Status", "type": "main", "index": 0 }
+      ]]
+    },
+    "Claude — Generate Reply (with History)": { "main": [[{ "node": "Build Payload", "type": "main", "index": 0 }]] },
+    "Claude — Classify Lead Status": { "main": [[{ "node": "Build Payload", "type": "main", "index": 0 }]] },
+    "Build Payload": { "main": [[{ "node": "POST to Dashboard", "type": "main", "index": 0 }]] },
+    "POST to Dashboard": { "main": [[{ "node": "Auto-Send Enabled?", "type": "main", "index": 0 }]] },
+    "Auto-Send Enabled?": {
+      "main": [
+        [{ "node": "Auto-Send IG Reply", "type": "main", "index": 0 }],
+        [{ "node": "Respond — OK", "type": "main", "index": 0 }]
+      ]
+    },
+    "Auto-Send IG Reply": { "main": [[{ "node": "Respond — OK", "type": "main", "index": 0 }]] },
+    "Webhook — Override": { "main": [[{ "node": "Send IG Reply (Override)", "type": "main", "index": 0 }]] },
+    "Daily Token Refresh Check": { "main": [[{ "node": "Call Token Refresh API", "type": "main", "index": 0 }]] },
+    "Sequence Executor (Every 5 min)": { "main": [[{ "node": "Fetch Pending Sequence Steps", "type": "main", "index": 0 }]] },
+    "Fetch Pending Sequence Steps": { "main": [[{ "node": "Process Sequence Steps", "type": "main", "index": 0 }]] }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    { "name": "instagram" },
+    { "name": "ai" },
+    { "name": "automation" }
+  ]
+}
