@@ -12,12 +12,17 @@ export async function GET() {
   };
 
   // Check Turso
+  let tursoError = "";
   try {
+    const url = process.env.TURSO_DATABASE_URL;
+    if (!url) throw new Error("TURSO_DATABASE_URL not set");
+    const token = process.env.TURSO_AUTH_TOKEN;
+    if (!token) throw new Error("TURSO_AUTH_TOKEN not set");
     await db().execute("SELECT 1");
     checks.turso = true;
   } catch (e) {
     checks.turso = false;
-    console.error("Turso check failed:", e instanceof Error ? e.message : e);
+    tursoError = e instanceof Error ? e.message : String(e);
   }
 
   // Check n8n (env configured)
@@ -30,5 +35,5 @@ export async function GET() {
   checks.instagram = !!process.env.IG_ACCESS_TOKEN || checks.turso;
 
   const ok = Object.values(checks).every(Boolean);
-  return NextResponse.json({ ok, checks });
+  return NextResponse.json({ ok, checks, ...(tursoError ? { tursoError } : {}) });
 }
