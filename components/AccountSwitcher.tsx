@@ -1,6 +1,6 @@
 "use client";
 
-import { Account } from "@/lib/db";
+import type { Account } from "@/lib/db";
 
 interface AccountSwitcherProps {
   accounts: Account[];

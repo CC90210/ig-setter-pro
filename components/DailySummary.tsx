@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DailyStats, fetchTodayStats } from "@/lib/db";
+import type { DailyStats } from "@/lib/db";
 import { startPolling } from "@/lib/types";
 
 interface DailySummaryProps {
@@ -13,10 +13,13 @@ export default function DailySummary({ accountId }: DailySummaryProps) {
 
   useEffect(() => {
     if (!accountId) return;
-    fetchTodayStats(accountId).then(setStats).catch(() => {});
-    const stop = startPolling(() => {
-      fetchTodayStats(accountId).then(setStats).catch(() => {});
-    }, 5000);
+    const fetchStats = () =>
+      fetch(`/api/stats?account_id=${accountId}`)
+        .then((r) => r.json())
+        .then((d) => setStats(d.stats ?? null))
+        .catch(() => {});
+    fetchStats();
+    const stop = startPolling(fetchStats, 5000);
     return stop;
   }, [accountId]);
 

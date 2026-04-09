@@ -1,6 +1,6 @@
 "use client";
 
-import { DMThread } from "@/lib/db";
+import type { DMThread } from "@/lib/db";
 import { formatRelativeTime } from "@/lib/types";
 
 interface ThreadFeedProps {

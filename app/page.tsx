@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { DMThread, Account, fetchThreads, fetchAccounts } from "@/lib/db";
+import type { DMThread, Account } from "@/lib/db";
 import { startPolling } from "@/lib/types";
 import StatusBanner from "@/components/StatusBanner";
 import StatsBar from "@/components/StatsBar";
@@ -21,26 +21,33 @@ export default function Home() {
 
   const loadAccounts = useCallback(async () => {
     try {
-      const data = await fetchAccounts();
-      setAccounts(data);
-      if (data.length > 0 && !activeAccountId) {
-        setActiveAccountId(data[0].id);
+      const res = await fetch("/api/accounts");
+      const data = await res.json();
+      const accounts: Account[] = data.accounts ?? [];
+      setAccounts(accounts);
+      if (accounts.length > 0 && !activeAccountId) {
+        setActiveAccountId(accounts[0].id);
       }
-    } catch (err) {
-      console.error("Failed to load accounts:", err);
+    } catch {
+      // silently ignore — UI stays with last known state
     }
   }, [activeAccountId]);
 
   const loadThreads = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await fetchThreads(activeAccountId || undefined);
-      setThreads(data);
-      if (data.length > 0 && !selectedId) {
-        setSelectedId(data[0].id);
+      const url = activeAccountId
+        ? `/api/threads?account_id=${activeAccountId}`
+        : "/api/threads";
+      const res = await fetch(url);
+      const data = await res.json();
+      const threads: DMThread[] = data.threads ?? [];
+      setThreads(threads);
+      if (threads.length > 0 && !selectedId) {
+        setSelectedId(threads[0].id);
       }
-    } catch (err) {
-      console.error("Failed to load threads:", err);
+    } catch {
+      // silently ignore — UI stays with last known state
     } finally {
       setLoading(false);
     }

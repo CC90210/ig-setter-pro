@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { DMThread, DMMessage, fetchMessages } from "@/lib/db";
+import type { DMThread, DMMessage } from "@/lib/db";
 import { startPolling } from "@/lib/types";
 
 interface ConversationChainProps {
@@ -14,8 +14,9 @@ export default function ConversationChain({ thread }: ConversationChainProps) {
 
   const loadMessages = useCallback(async () => {
     try {
-      const data = await fetchMessages(thread.id);
-      setMessages(data);
+      const res = await fetch(`/api/messages?thread_id=${thread.id}`);
+      const data = await res.json();
+      setMessages(data.messages ?? []);
     } catch {}
   }, [thread.id]);
 
