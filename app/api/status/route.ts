@@ -22,10 +22,8 @@ export async function GET() {
     checks.turso = true;
   } catch (e) {
     checks.turso = false;
-    const urlHint = process.env.TURSO_DATABASE_URL
-      ? `url_starts=${process.env.TURSO_DATABASE_URL.substring(0, 15)}...`
-      : "url=MISSING";
-    tursoError = `${e instanceof Error ? e.message : String(e)} | ${urlHint}`;
+    const rawUrl = process.env.TURSO_DATABASE_URL || "MISSING";
+    tursoError = `${e instanceof Error ? e.message : String(e)} | url_len=${rawUrl.length} | url=${rawUrl.substring(0, 50)} | token_len=${(process.env.TURSO_AUTH_TOKEN || "").length}`;
   }
 
   // Check n8n (env configured)
