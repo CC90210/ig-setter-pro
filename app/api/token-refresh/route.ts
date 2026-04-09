@@ -15,12 +15,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Find accounts with tokens expiring in the next 7 days
+  // Find accounts with tokens expiring after now but within the next 7 days
+  const now = new Date().toISOString();
   const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
   const accountsResult = await db().execute({
-    sql: "SELECT id, ig_username, ig_access_token, token_expires_at FROM accounts WHERE is_active = 1 AND token_expires_at < ?",
-    args: [sevenDaysFromNow],
+    sql: "SELECT id, ig_username, ig_access_token, token_expires_at FROM accounts WHERE is_active = 1 AND token_expires_at > ? AND token_expires_at < ?",
+    args: [now, sevenDaysFromNow],
   });
 
   const accounts = accountsResult.rows as unknown as Array<{
@@ -39,8 +40,7 @@ export async function POST(req: NextRequest) {
       );
 
       if (!res.ok) {
-        const errText = await res.text();
-        results.push({ account: account.ig_username, success: false, error: errText });
+        results.push({ account: account.ig_username, success: false, error: "Token refresh failed" });
         continue;
       }
 
@@ -48,16 +48,17 @@ export async function POST(req: NextRequest) {
       const newToken = data.access_token as string;
       const expiresIn = (data.expires_in as number) || 5184000; // Default 60 days
       const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
-      const now = new Date().toISOString();
+      const updatedAt = new Date().toISOString();
 
       await db().execute({
         sql: "UPDATE accounts SET ig_access_token = ?, token_expires_at = ?, updated_at = ? WHERE id = ?",
-        args: [newToken, expiresAt, now, account.id],
+        args: [newToken, expiresAt, updatedAt, account.id],
       });
 
       results.push({ account: account.ig_username, success: true });
     } catch (err) {
-      results.push({ account: account.ig_username, success: false, error: String(err) });
+      console.error("[token-refresh]", err);
+      results.push({ account: account.ig_username, success: false, error: "Token refresh failed" });
     }
   }
 

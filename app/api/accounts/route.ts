@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, uuid } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export async function GET() {
   try {
@@ -8,11 +9,15 @@ export async function GET() {
     );
     return NextResponse.json({ accounts: result.rows });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("[accounts/GET]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
+  const authError = requireAuth(req);
+  if (authError) return authError;
+
   let body: {
     ig_username: string;
     ig_page_id: string;
@@ -58,11 +63,15 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ account: { id, ig_username: body.ig_username } }, { status: 201 });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("[accounts/POST]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 export async function PATCH(req: NextRequest) {
+  const authError = requireAuth(req);
+  if (authError) return authError;
+
   let body: {
     id: string;
     auto_send_enabled?: boolean;
@@ -110,6 +119,7 @@ export async function PATCH(req: NextRequest) {
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("[accounts/PATCH]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

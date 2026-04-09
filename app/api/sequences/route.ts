@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, uuid } from "@/lib/db";
+import { requireAuth } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   const accountId = req.nextUrl.searchParams.get("account_id");
@@ -42,11 +43,15 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ sequences: result });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("[sequences/GET]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
+  const authError = requireAuth(req);
+  if (authError) return authError;
+
   let body: {
     account_id: string;
     name: string;
@@ -58,6 +63,10 @@ export async function POST(req: NextRequest) {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  if (body.steps?.length > 20) {
+    return NextResponse.json({ error: "Maximum 20 steps per sequence" }, { status: 400 });
   }
 
   const seqId = uuid();
@@ -82,11 +91,15 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ sequence: { id: seqId } }, { status: 201 });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("[sequences/POST]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 export async function DELETE(req: NextRequest) {
+  const authError = requireAuth(req);
+  if (authError) return authError;
+
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
@@ -94,6 +107,7 @@ export async function DELETE(req: NextRequest) {
     await db().execute({ sql: "DELETE FROM sequences WHERE id = ?", args: [id] });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("[sequences/DELETE]", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
