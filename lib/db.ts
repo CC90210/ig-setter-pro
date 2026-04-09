@@ -9,6 +9,7 @@ export function db(): Client {
     if (!rawUrl) throw new Error("Missing TURSO_DATABASE_URL");
     const url = rawUrl.replace(/^libsql:\/\//, "https://");
     _client = createClient({ url, authToken });
+    _client.execute("PRAGMA foreign_keys = ON").catch(() => {});
   }
   return _client;
 }
@@ -130,7 +131,10 @@ export interface SequenceEnrollment {
 // the 32-char lowercase hex the schema uses as its DEFAULT. All app-side
 // INSERT statements must use this function so IDs are format-consistent.
 
-export function uuid(): string {
+/** @deprecated Use generateId() instead */
+export const uuid = generateId;
+
+export function generateId(): string {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");

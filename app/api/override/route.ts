@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, uuid } from "@/lib/db";
+import { db, generateId } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   let body: { thread_id: string; message: string };
@@ -74,7 +74,13 @@ export async function POST(req: NextRequest) {
   await db().execute({
     sql: `INSERT INTO dm_messages (id, thread_id, account_id, ig_message_id, direction, content, sent_at, is_ai, override)
           VALUES (?, ?, ?, NULL, 'outbound', ?, ?, 0, 1)`,
-    args: [uuid(), thread_id, thread.account_id, message.trim(), now],
+    args: [generateId(), thread_id, thread.account_id, message.trim(), now],
+  });
+
+  // Increment message count
+  await db().execute({
+    sql: "UPDATE dm_threads SET message_count = message_count + 1 WHERE id = ?",
+    args: [thread_id],
   });
 
   // Clear pending draft and update thread
