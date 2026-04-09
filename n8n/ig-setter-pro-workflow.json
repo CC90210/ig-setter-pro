@@ -90,7 +90,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.DASHBOARD_URL }}/api/webhook",
+        "url": "={{ $env.DASHBOARD_URL }}/api/history",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -111,7 +111,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [1300, 420],
-      "notes": "Fetches last 20 messages from Supabase via dashboard API for Claude context"
+      "notes": "Fetches last 20 messages from Turso via /api/history endpoint"
     },
     {
       "parameters": {
@@ -224,7 +224,7 @@
           "options": { "caseSensitive": false },
           "conditions": [
             {
-              "leftValue": "={{ $env.AUTO_SEND_ENABLED }}",
+              "leftValue": "={{ $('POST to Dashboard').first().json.auto_send_enabled }}",
               "rightValue": "true",
               "operator": { "type": "string", "operation": "equals" }
             }
@@ -379,12 +379,11 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "={{ $env.SUPABASE_URL }}/rest/v1/sequence_enrollments?status=eq.active&next_step_at=lte.{{ encodeURIComponent(new Date().toISOString()) }}&select=*,sequences(*),sequence_steps(*),dm_threads(*)",
+        "url": "={{ $env.DASHBOARD_URL }}/api/sequences/pending",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_KEY }}" },
-            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}" }
+            { "name": "x-webhook-secret", "value": "={{ $env.WEBHOOK_SECRET }}" }
           ]
         },
         "options": { "timeout": 15000 }

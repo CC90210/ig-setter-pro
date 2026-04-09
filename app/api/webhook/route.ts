@@ -182,7 +182,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, thread_id: threadId });
+    // Check account's auto_send setting for n8n
+    let autoSendEnabled = false;
+    try {
+      const acctResult = await db().execute({
+        sql: "SELECT auto_send_enabled FROM accounts WHERE id = ? LIMIT 1",
+        args: [body.account_id],
+      });
+      if (acctResult.rows.length > 0) {
+        autoSendEnabled = !!(acctResult.rows[0] as unknown as { auto_send_enabled: number }).auto_send_enabled;
+      }
+    } catch {}
+
+    return NextResponse.json({ ok: true, thread_id: threadId, auto_send_enabled: autoSendEnabled });
   } catch (err) {
     console.error("[webhook] Unhandled error:", err);
     // Return 200 so Meta doesn't disable the webhook subscription
