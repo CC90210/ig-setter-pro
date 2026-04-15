@@ -16,7 +16,8 @@ function getPeriodDays(period: Period): number {
 export async function GET(req: NextRequest) {
   const accountId = req.nextUrl.searchParams.get("account_id");
   const periodParam = req.nextUrl.searchParams.get("period") ?? "30d";
-  const period: Period = ["7d", "30d", "90d"].includes(periodParam)
+  const validPeriods: string[] = ["7d", "30d", "90d"];
+  const period: Period = validPeriods.includes(periodParam)
     ? (periodParam as Period)
     : "30d";
 
