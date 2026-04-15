@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   try {
     let sql = "SELECT * FROM broadcasts";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic query args
-    const args: any[] = [];
+    const args: Array<string | number | null> = [];
     const conditions: string[] = [];
 
     if (accountId) {
@@ -123,7 +123,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const fields: string[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic SQL args array
-    const args: any[] = [];
+    const args: Array<string | number | null> = [];
 
     if (body.name !== undefined) { fields.push("name = ?"); args.push(body.name); }
     if (body.message !== undefined) { fields.push("message = ?"); args.push(body.message); }

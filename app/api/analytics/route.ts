@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- args may be empty or have account_id
-    const accountArgs: any[] = accountId ? [accountId] : [];
+    const accountArgs: Array<string | number | null> = accountId ? [accountId] : [];
     const accountFilter = accountId ? "WHERE account_id = ?" : "";
     const accountFilterAnd = accountId ? "AND account_id = ?" : "";
 

@@ -147,7 +147,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const fields: string[] = [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic SQL args array needs mixed types
-    const args: any[] = [];
+    const args: Array<string | number | null> = [];
 
     if (body.custom_fields !== undefined) {
       fields.push("custom_fields = ?");
