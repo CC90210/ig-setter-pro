@@ -208,3 +208,111 @@ export async function fetchSequences(accountId: string): Promise<Sequence[]> {
   });
   return result.rows as unknown as Sequence[];
 }
+
+// ─── ManyChat Feature Types ───────────────────────────────────────────────────
+
+export interface Subscriber {
+  id: string;
+  account_id: string;
+  ig_user_id: string;
+  username: string;
+  display_name: string;
+  profile_pic_url: string | null;
+  is_follower: number;
+  opted_in: number;
+  first_interaction_at: string;
+  last_interaction_at: string;
+  source: string | null;
+  custom_fields: string;
+  lifetime_value: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Tag {
+  id: string;
+  account_id: string;
+  name: string;
+  color: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface Broadcast {
+  id: string;
+  account_id: string;
+  name: string;
+  message: string;
+  button_text: string | null;
+  button_url: string | null;
+  target_tag_ids: string;
+  target_all: number;
+  status: "draft" | "scheduled" | "sending" | "sent" | "failed";
+  total_recipients: number;
+  total_sent: number;
+  total_failed: number;
+  total_clicked: number;
+  scheduled_at: string | null;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WelcomeMessage {
+  id: string;
+  account_id: string;
+  is_active: number;
+  message: string;
+  button_text: string | null;
+  button_url: string | null;
+  times_sent: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuickReply {
+  id: string;
+  account_id: string;
+  label: string;
+  message: string;
+  category: string | null;
+  times_used: number;
+  created_at: string;
+}
+
+export interface Conversion {
+  id: string;
+  account_id: string;
+  subscriber_id: string | null;
+  thread_id: string | null;
+  source_trigger_id: string | null;
+  source_type: string | null;
+  event_type: string;
+  value: number;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface GrowthTool {
+  id: string;
+  account_id: string;
+  name: string;
+  tool_type: "ref_url" | "qr_code" | "opt_in_keyword" | "landing_page";
+  slug: string;
+  auto_dm_message: string | null;
+  auto_tag_ids: string;
+  total_hits: number;
+  total_conversions: number;
+  is_active: number;
+  created_at: string;
+}
+
+export interface BroadcastDelivery {
+  id: string;
+  broadcast_id: string;
+  subscriber_id: string;
+  status: "pending" | "sent" | "failed" | "clicked";
+  sent_at: string | null;
+  clicked_at: string | null;
+  error: string | null;
+}

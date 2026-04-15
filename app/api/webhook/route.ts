@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
   const token = params.get("hub.verify_token");
   const challenge = params.get("hub.challenge");
 
-  if (mode === "subscribe" && token === process.env.WEBHOOK_VERIFY_TOKEN) {
+  const expectedToken = (process.env.WEBHOOK_VERIFY_TOKEN || "").trim();
+  if (mode === "subscribe" && (token || "").trim() === expectedToken) {
     // Validate challenge is a reasonable string (Meta sends numeric strings)
     if (!challenge || challenge.length > 256) {
       return NextResponse.json({ error: "Invalid challenge" }, { status: 400 });
@@ -34,8 +35,9 @@ export async function GET(req: NextRequest) {
 
 // POST — Receives cleaned DM payload from n8n
 export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-webhook-secret");
-  if (secret !== process.env.WEBHOOK_SECRET) {
+  const secret = (req.headers.get("x-webhook-secret") || "").trim();
+  const expected = (process.env.WEBHOOK_SECRET || "").trim();
+  if (secret !== expected) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -172,6 +174,33 @@ export async function POST(req: NextRequest) {
         isInbound, qualifiedInc, bookedInc, closedInc, isInbound, aiDraftInc,
       ],
     });
+
+    // Upsert subscriber (keep ManyChat-style subscriber list in sync)
+    try {
+      const existingSub = await db().execute({
+        sql: "SELECT id FROM subscribers WHERE account_id = ? AND ig_user_id = ? LIMIT 1",
+        args: [body.account_id, body.ig_user_id],
+      });
+      if (existingSub.rows.length === 0) {
+        await db().execute({
+          sql: `INSERT INTO subscribers (id, account_id, ig_user_id, username, display_name,
+                source, first_interaction_at, last_interaction_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'dm', ?, ?, ?, ?)`,
+          args: [
+            generateId(), body.account_id, body.ig_user_id,
+            body.username, body.display_name || body.username,
+            now, now, now, now,
+          ],
+        });
+      } else {
+        await db().execute({
+          sql: "UPDATE subscribers SET username = ?, display_name = ?, last_interaction_at = ?, updated_at = ? WHERE account_id = ? AND ig_user_id = ?",
+          args: [body.username, body.display_name || body.username, now, now, body.account_id, body.ig_user_id],
+        });
+      }
+    } catch (e) {
+      console.error("[webhook] subscriber upsert", e);
+    }
 
     // Check automation rules (wrapped in try/catch — must not crash the handler)
     if (body.direction === "inbound") {
