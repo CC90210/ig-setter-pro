@@ -101,16 +101,19 @@ export async function PATCH(req: NextRequest) {
   const args: (string | number | null)[] = [];
 
   for (const key of allowed) {
-    if (body[key] !== undefined) {
-      updates.push(`${key} = ?`);
-      const val = body[key];
-      if (typeof val === "boolean") {
-        args.push(val ? 1 : 0);
-      } else if (typeof val === "string" || typeof val === "number" || val === null) {
-        args.push(val);
-      } else {
-        args.push(String(val));
-      }
+    const val = body[key];
+    if (val === undefined) continue;
+    updates.push(`${key} = ?`);
+    if (typeof val === "boolean") {
+      args.push(val ? 1 : 0);
+    } else if (typeof val === "string") {
+      args.push(val);
+    } else if (typeof val === "number") {
+      args.push(val);
+    } else if (val === null) {
+      args.push(null);
+    } else {
+      args.push(String(val));
     }
   }
 
@@ -118,7 +121,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
   }
 
-  args.push(body.id as string);
+  args.push(String(body.id));
   try {
     await db().execute({
       sql: `UPDATE comment_triggers SET ${updates.join(", ")}, updated_at = datetime('now') WHERE id = ?`,
