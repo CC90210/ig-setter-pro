@@ -24,8 +24,7 @@ export async function GET(req: NextRequest) {
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- args may be empty or have account_id
-    const accountArgs: Array<string | number | null> = accountId ? [accountId] : [];
+    const accountArgs: (string | number | null)[] = accountId ? [accountId] : [];
     const accountFilter = accountId ? "WHERE account_id = ?" : "";
     const accountFilterAnd = accountId ? "AND account_id = ?" : "";
 
