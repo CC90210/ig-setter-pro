@@ -73,10 +73,20 @@ export default function Home() {
 
       <header className="navbar">
         <div className="navbar-left">
-          <h1 className="brand">
-            <span className="brand-icon">&#9674;</span> ig-setter
-            <span className="brand-pro">PRO</span>
-          </h1>
+          <a href="/" className="brand-link">
+            <h1 className="brand">
+              <span className="brand-icon">◈</span>
+              PULSE
+              <span className="brand-by">by OASIS</span>
+            </h1>
+          </a>
+          <nav className="nav-tabs">
+            <a href="/" className="nav-tab nav-tab--active">Inbox</a>
+            <a href="/subscribers" className="nav-tab">Subscribers</a>
+            <a href="/automations" className="nav-tab">Automations</a>
+            <a href="/broadcasts" className="nav-tab">Broadcasts</a>
+            <a href="/analytics" className="nav-tab">Analytics</a>
+          </nav>
           <AccountSwitcher
             accounts={accounts}
             activeId={activeAccountId}

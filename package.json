@@ -1,6 +1,7 @@
 {
-  "name": "ig-setter-pro",
-  "version": "1.0.0",
+  "name": "pulse-by-oasis",
+  "version": "2.0.0",
+  "description": "PULSE — AI Instagram Command Center. Built by OASIS.",
   "private": true,
   "scripts": {
     "dev": "next dev",
