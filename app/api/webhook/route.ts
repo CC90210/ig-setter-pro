@@ -63,6 +63,22 @@ export async function POST(req: NextRequest) {
   }
 
   // Input validation
+  // Infer account_id from ig_thread_id if not supplied
+  if (!body.account_id && body.ig_thread_id) {
+    const pageId = body.ig_thread_id.split('_')[0];
+    try {
+      const acct = await db().execute({
+        sql: "SELECT id FROM accounts WHERE ig_page_id = ? LIMIT 1",
+        args: [pageId],
+      });
+      if (acct.rows.length > 0) {
+        body.account_id = (acct.rows[0]).id;
+      }
+    } catch (e) {
+      console.error("[webhook] account_id inference error:", e);
+    }
+  }
+
   if (!body.account_id || !body.ig_thread_id || !body.ig_user_id || !body.username || !body.message || !body.direction) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
