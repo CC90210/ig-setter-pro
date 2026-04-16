@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
         args: [pageId],
       });
       if (acct.rows.length > 0) {
-        body.account_id = (acct.rows[0]).id;
+        body.account_id = (acct.rows[0] as unknown as { id: string }).id;
       }
     } catch (e) {
       console.error("[webhook] account_id inference error:", e);
