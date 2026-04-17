@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Account } from "@/lib/db";
 import AccountSwitcher from "@/components/AccountSwitcher";
+import IcpConfigCard from "@/components/IcpConfigCard";
 
 interface StatsResponse {
   window_days: number;
@@ -176,6 +177,9 @@ export default function DoctrinePage() {
                 })}
               </div>
             </div>
+
+            {/* ICP config */}
+            <IcpConfigCard accountId={activeAccountId} />
 
             {/* Prospect queue */}
             <div style={sectionStyle}>
