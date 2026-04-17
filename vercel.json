@@ -7,11 +7,11 @@
   "crons": [
     {
       "path": "/api/cron/stale-leads",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 9 * * *"
     },
     {
-      "path": "/api/cron/send-outreach?limit=5",
-      "schedule": "0 13,17,21 * * *"
+      "path": "/api/cron/send-outreach?limit=10",
+      "schedule": "0 17 * * *"
     }
   ]
 }
