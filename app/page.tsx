@@ -82,6 +82,8 @@ export default function Home() {
           </a>
           <nav className="nav-tabs">
             <a href="/" className="nav-tab nav-tab--active">Inbox</a>
+            <a href="/prospects" className="nav-tab">Prospects</a>
+            <a href="/doctrine" className="nav-tab">Doctrine</a>
             <a href="/subscribers" className="nav-tab">Subscribers</a>
             <a href="/automations" className="nav-tab">Automations</a>
             <a href="/broadcasts" className="nav-tab">Broadcasts</a>

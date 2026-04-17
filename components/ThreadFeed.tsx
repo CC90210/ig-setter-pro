@@ -2,6 +2,7 @@
 
 import type { DMThread } from "@/lib/db";
 import { formatRelativeTime } from "@/lib/types";
+import StageBadge, { ObjectionBadge, FriendBadge, SignalDot } from "./StageBadge";
 
 interface ThreadFeedProps {
   threads: DMThread[];
@@ -9,13 +10,6 @@ interface ThreadFeedProps {
   onSelect: (id: string) => void;
   loading: boolean;
 }
-
-const STATUS_MAP = {
-  active: { label: "ACTIVE", className: "status-badge--active" },
-  qualified: { label: "QUALIFIED", className: "status-badge--qualified" },
-  booked: { label: "BOOKED", className: "status-badge--booked" },
-  closed: { label: "CLOSED", className: "status-badge--closed" },
-};
 
 export default function ThreadFeed({ threads, selectedId, onSelect, loading }: ThreadFeedProps) {
   if (loading) {
@@ -53,45 +47,47 @@ export default function ThreadFeed({ threads, selectedId, onSelect, loading }: T
         </div>
       )}
 
-      {threads.map((thread) => {
-        const statusInfo = STATUS_MAP[thread.status] || STATUS_MAP.active;
-        return (
+      {threads.map((thread) => (
+        <div
+          key={thread.id}
+          className={`thread-card ${thread.id === selectedId ? "thread-card--selected" : ""}`}
+          onClick={() => onSelect(thread.id)}
+        >
           <div
-            key={thread.id}
-            className={`thread-card ${thread.id === selectedId ? "thread-card--selected" : ""}`}
-            onClick={() => onSelect(thread.id)}
+            className="thread-avatar"
+            style={{
+              backgroundColor: thread.avatar_color + "22",
+              borderColor: thread.avatar_color + "44",
+              color: thread.avatar_color,
+            }}
           >
-            <div
-              className="thread-avatar"
-              style={{
-                backgroundColor: thread.avatar_color + "22",
-                borderColor: thread.avatar_color + "44",
-                color: thread.avatar_color,
-              }}
-            >
-              {thread.avatar_initial}
+            {thread.avatar_initial}
+          </div>
+          <div className="thread-info">
+            <div className="thread-top">
+              <span className="thread-username">
+                <SignalDot score={thread.signal_score || 0} />
+                <span style={{ marginLeft: 6 }}>@{thread.username}</span>
+              </span>
+              <span className="thread-time">
+                {thread.last_timestamp ? formatRelativeTime(thread.last_timestamp) : ""}
+              </span>
             </div>
-            <div className="thread-info">
-              <div className="thread-top">
-                <span className="thread-username">@{thread.username}</span>
-                <span className="thread-time">
-                  {thread.last_timestamp ? formatRelativeTime(thread.last_timestamp) : ""}
+            <div className="thread-preview">{thread.last_message}</div>
+            <div className="thread-bottom" style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <StageBadge stage={thread.stage || "cold"} compact />
+              {thread.objection && <ObjectionBadge objection={thread.objection} />}
+              {thread.is_friend ? <FriendBadge /> : null}
+              {thread.pending_ai_draft && thread.stage !== "dead" && thread.stage !== "closed_lost" && (
+                <span className="ai-typing-badge">
+                  <span className="live-dot" />
+                  AI drafting
                 </span>
-              </div>
-              <div className="thread-preview">{thread.last_message}</div>
-              <div className="thread-bottom">
-                <span className={`status-badge ${statusInfo.className}`}>{statusInfo.label}</span>
-                {thread.pending_ai_draft && thread.status === "active" && (
-                  <span className="ai-typing-badge">
-                    <span className="live-dot" />
-                    AI drafting
-                  </span>
-                )}
-              </div>
+              )}
             </div>
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 }

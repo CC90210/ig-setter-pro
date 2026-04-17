@@ -18,6 +18,33 @@ export function db(): Client {
 
 export type ThreadStatus = "active" | "qualified" | "booked" | "closed";
 
+export type Stage =
+  | "cold"
+  | "opener"
+  | "qualify"
+  | "pain"
+  | "solution"
+  | "objection"
+  | "booked"
+  | "closed_won"
+  | "closed_lost"
+  | "dead";
+
+export type ObjectionType =
+  | "price"
+  | "timing"
+  | "trust"
+  | "spouse"
+  | "not_now"
+  | "competitor"
+  | "happy_current"
+  | "no_budget"
+  | "need_info"
+  | "too_busy"
+  | "tried_before"
+  | "bot_check"
+  | "other";
+
 export interface Account {
   id: string;
   ig_username: string;
@@ -48,6 +75,80 @@ export interface DMThread {
   pending_ai_draft: string | null;
   conversation_summary: string | null;
   message_count: number;
+  created_at: string;
+  updated_at: string;
+  // Doctrine (migration 004)
+  stage: Stage;
+  objection: ObjectionType | null;
+  is_friend: number;
+  region: string | null;
+  in_icp: number;
+  signal_score: number;
+  bot_check_count: number;
+  last_inbound_at: string | null;
+  last_outbound_at: string | null;
+  last_stage_change_at: string | null;
+}
+
+export interface StageTransition {
+  id: string;
+  thread_id: string;
+  account_id: string;
+  from_stage: Stage | null;
+  to_stage: Stage;
+  reason: string | null;
+  triggered_by: "ai" | "human" | "rule" | "cron";
+  created_at: string;
+}
+
+export interface ObjectionRecord {
+  id: string;
+  thread_id: string;
+  account_id: string;
+  objection_type: ObjectionType;
+  inbound_message: string;
+  rebuttal_sent: string | null;
+  resolved: number;
+  created_at: string;
+}
+
+export interface Prospect {
+  id: string;
+  account_id: string;
+  ig_username: string;
+  ig_user_id: string | null;
+  display_name: string | null;
+  profile_url: string | null;
+  bio_snippet: string | null;
+  follower_count: number | null;
+  niche: string | null;
+  region: string | null;
+  source: string | null;
+  reason: string | null;
+  personalization: string | null;
+  status: "queued" | "sending" | "sent" | "replied" | "skipped" | "failed" | "blocked";
+  priority: number;
+  scheduled_for: string | null;
+  attempts: number;
+  last_error: string | null;
+  thread_id: string | null;
+  created_at: string;
+  sent_at: string | null;
+  replied_at: string | null;
+  updated_at: string;
+}
+
+export interface IcpConfig {
+  id: string;
+  account_id: string;
+  allowed_regions: string;   // JSON array
+  blocked_regions: string;   // JSON array
+  target_niches: string;     // JSON array
+  excluded_niches: string;   // JSON array
+  min_followers: number;
+  max_followers: number | null;
+  auto_archive_oop: number;
+  stale_days: number;
   created_at: string;
   updated_at: string;
 }

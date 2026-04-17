@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, generateId } from "@/lib/db";
+import { runDoctrine } from "@/lib/doctrine";
+
+export const maxDuration = 30;
 
 const AVATAR_COLORS = [
   "#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7",
@@ -239,7 +242,58 @@ export async function POST(req: NextRequest) {
       }
     } catch {}
 
-    return NextResponse.json({ ok: true, thread_id: threadId, auto_send_enabled: autoSendEnabled });
+    // Run doctrine if:
+    //  - inbound message
+    //  - n8n didn't pre-generate a draft (pending_ai_draft is null)
+    //  - the ANTHROPIC_API_KEY is configured
+    // This lets the system work end-to-end even if n8n only does persist.
+    let doctrineResult: {
+      draft: string;
+      stage: string;
+      previous_stage: string;
+      stage_changed: boolean;
+      objection: string | null;
+      signal_score: number;
+      bot_check: boolean;
+    } | null = null;
+    if (
+      body.direction === "inbound" &&
+      !body.pending_ai_draft &&
+      process.env.ANTHROPIC_API_KEY
+    ) {
+      try {
+        const r = await runDoctrine({
+          accountId: body.account_id,
+          threadId,
+          inbound: body.message,
+        });
+        doctrineResult = {
+          draft: r.draft,
+          stage: r.nextStage,
+          previous_stage: r.previousStage,
+          stage_changed: r.stageChanged,
+          objection: r.objection,
+          signal_score: r.signalScore,
+          bot_check: r.botCheck,
+        };
+        // Persist the generated draft to the thread
+        if (r.draft) {
+          await db().execute({
+            sql: `UPDATE dm_threads SET pending_ai_draft = ?, updated_at = ? WHERE id = ?`,
+            args: [r.draft, new Date().toISOString(), threadId],
+          });
+        }
+      } catch (e) {
+        console.error("[webhook] doctrine run failed (non-fatal):", e);
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      thread_id: threadId,
+      auto_send_enabled: autoSendEnabled,
+      doctrine: doctrineResult,
+    });
   } catch (err) {
     console.error("[webhook] Unhandled error:", err);
     // Return 200 so Meta doesn't disable the webhook subscription
