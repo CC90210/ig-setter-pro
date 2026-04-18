@@ -69,6 +69,7 @@ export const VOICE_RULES = {
     pain: 280,
     solution: 500,   // allowed to be longer when presenting
     objection: 320,
+    book_call: 260,  // booking offer — short, link + promise of repo
     booked: 220,
     closed_won: 220,
     closed_lost: 180,

@@ -17,6 +17,7 @@ export const STAGES = [
   "pain",
   "solution",
   "objection",
+  "book_call",
   "booked",
   "closed_won",
   "closed_lost",
@@ -178,19 +179,50 @@ export const STAGE_DEFS: Record<Stage, StageDef> = {
     ],
   },
 
+  // ─── Call-booking offer (between solution and booked) ──────────────────
+  book_call: {
+    stage: "book_call",
+    objective: "Drop the booking link naturally and get them to pick a 30-min slot.",
+    maxMessages: 3,
+    guidance: [
+      "They're ready for the next step. Your job: send the booking link WITHOUT sounding like a sales rep.",
+      "",
+      "Rules:",
+      "- Drop the booking link with ONE short framing line. Don't oversell.",
+      "- Mention it's 30 minutes and the link gets them on my calendar directly.",
+      "- Mention the FREE GitHub repo they'll get after the call (this is the hook that closes them).",
+      "- NEVER say 'book a call' robotically. Use: 'grab a time', 'pick a slot', 'throw it on my calendar', 'let's jump on a 30'.",
+      "- Link placement: {{BOOKING_LINK}} — the system will replace this placeholder with the real calendar.app.google URL.",
+      "",
+      "Good reply examples (match CC's voice, do NOT paste verbatim):",
+      "- 'sweet. throw 30 on my calendar — {{BOOKING_LINK}}. after we hop on i'll send you the full repo.'",
+      "- 'here ya go — {{BOOKING_LINK}}. grab whatever works. i'll send you the github repo and walk you through it live.'",
+      "- 'easiest way is just 30 min on google meet. {{BOOKING_LINK}} — pick any open slot. repo drops in your inbox right after.'",
+      "",
+      "Once the reply is sent, the /api/cron/check-bookings cron will poll Google Calendar. When a matching booking appears, the stage transitions to 'booked' and the teaser email fires automatically.",
+      "",
+      "If they hesitate or ghost → follow up once with a lighter nudge, else cycle back to objection stage.",
+    ].join("\n"),
+    exitConditions: [
+      "They book → cron detects → booked",
+      "They push back → objection",
+      "They ghost > 48h → stale-lead cron handles",
+    ],
+  },
+
   // ─── Terminal stages ────────────────────────────────────────────────────
   booked: {
     stage: "booked",
-    objective: "Confirm the call, send the link, set expectations.",
+    objective: "Confirm the call, reinforce expectations, don't keep selling.",
     maxMessages: 2,
     guidance: [
-      "They agreed to a convo. Lock it in.",
-      "- Send booking link (calendly.com/konamak/15min).",
-      "- Confirm timezone if not already clear.",
-      "- Tell them what to expect ('I'll ask about [X] and walk you through what this would look like for you — should take 15').",
-      "- Don't keep selling. They're already in. Protect the appointment.",
+      "They booked. Lock it in but do NOT keep pitching.",
+      "- Confirm you got the booking + timezone if ambiguous.",
+      "- Tell them what to expect ('30 min, quick walk-through of how the system works, then you get the repo').",
+      "- Tell them the teaser is already in their inbox (the cron fired that automatically).",
+      "- One sentence. Protect the appointment. Back off.",
     ].join("\n"),
-    exitConditions: ["Call happens → moved manually by CC to closed_won / closed_lost"],
+    exitConditions: ["Call happens → CC manually flips to closed_won or closed_lost via dashboard"],
   },
 
   closed_won: {
@@ -261,6 +293,7 @@ export function nextStage(
     stalled?: boolean;
     outOfIcp?: boolean;
     botCheck?: boolean;
+    signalScore?: number;    // 0-100 buy intent from classifier
   }
 ): Stage {
   // Terminal stages don't move
@@ -275,6 +308,14 @@ export function nextStage(
     return current;
   }
   if (signals.detectedObjection) return "objection";
+
+  // High-intent short-circuit: drop to book_call from any active stage
+  // when buying signal is strong. This is the "get them off the DM and onto the
+  // calendar" move — earlier stages were just qualifying/warming.
+  const highIntent = (signals.signalScore ?? 0) >= 60 && signals.askedForHelp;
+  if (highIntent && !["cold", "opener", "book_call"].includes(current)) {
+    return "book_call";
+  }
 
   // Progressive advancement
   switch (current) {
@@ -294,11 +335,16 @@ export function nextStage(
       if (signals.askedForHelp) return "solution";
       return current;
     case "solution":
-      // Stays until booked / objection / closed_lost (all handled above)
+      // Ask-for-help on solution stage = ready for booking
+      if (signals.askedForHelp) return "book_call";
       return current;
     case "objection":
       // Resolved? Classifier should have marked askedForHelp or bookedCall.
       // Otherwise stay until resolution.
+      if (signals.askedForHelp) return "book_call";
+      return current;
+    case "book_call":
+      // Stays until booking detected by cron (bookedCall signal) or pushback
       return current;
     default:
       return current;

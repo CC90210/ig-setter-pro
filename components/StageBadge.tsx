@@ -14,6 +14,7 @@ const STAGE_META: Record<Stage, { label: string; color: string; bg: string }> = 
   pain:        { label: "Pain",       color: "#ffb84d", bg: "rgba(255,184,77,0.15)" },
   solution:    { label: "Solution",   color: "#c7a6ff", bg: "rgba(199,166,255,0.15)" },
   objection:   { label: "Objection",  color: "#ff8a65", bg: "rgba(255,138,101,0.18)" },
+  book_call:   { label: "Book Call",  color: "#ffd54f", bg: "rgba(255,213,79,0.18)"  },
   booked:      { label: "Booked",     color: "#00ffab", bg: "rgba(0,255,171,0.15)" },
   closed_won:  { label: "Won",        color: "#00e676", bg: "rgba(0,230,118,0.18)" },
   closed_lost: { label: "Lost",       color: "#ff5252", bg: "rgba(255,82,82,0.15)" },

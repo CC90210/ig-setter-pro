@@ -25,6 +25,7 @@ export type Stage =
   | "pain"
   | "solution"
   | "objection"
+  | "book_call"
   | "booked"
   | "closed_won"
   | "closed_lost"
@@ -88,6 +89,14 @@ export interface DMThread {
   last_inbound_at: string | null;
   last_outbound_at: string | null;
   last_stage_change_at: string | null;
+  // Booking flow (migration 005)
+  booking_offered_at: string | null;
+  booking_email: string | null;
+  booked_for: string | null;
+  calendar_event_id: string | null;
+  teaser_sent_at: string | null;
+  call_completed_at: string | null;
+  repo_delivered_at: string | null;
 }
 
 export interface StageTransition {

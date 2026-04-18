@@ -108,6 +108,7 @@ export async function runDoctrine(input: DoctrineInput): Promise<DoctrineResult>
     stalled: classifier.stalled,
     outOfIcp: classifier.out_of_icp,
     botCheck: classifier.bot_check,
+    signalScore: classifier.signal_score,
   });
 
   const stageChanged = target !== currentStage;

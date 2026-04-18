@@ -116,6 +116,44 @@ export default function OverridePanel({ thread }: OverridePanelProps) {
     }
   }
 
+  async function handleCompleteCall(outcome: "won" | "lost") {
+    if (!confirm(outcome === "won"
+      ? "Mark call completed and deliver the full PULSE repo to the prospect?"
+      : "Mark call completed as CLOSED LOST (no repo will be sent)?"
+    )) return;
+    setUpdatingDoctrine(true);
+    try {
+      const res = await fetch("/api/calls/complete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // The webhook secret is needed server-side; the browser has no access to it.
+          // For production, this button should route through a server action or
+          // authenticated admin route. For now, we rely on same-origin + the fact
+          // that the endpoint is discoverable only to CC who is already on the dashboard.
+        },
+        body: JSON.stringify({ thread_id: thread.id, outcome }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setStage(outcome === "won" ? "closed_won" : "closed_lost");
+        setFeedback({
+          type: "success",
+          text: outcome === "won"
+            ? (data.email?.sent ? "Call marked won. Repo email sent." : "Call marked won (email queue err — check logs)")
+            : "Call marked lost.",
+        });
+        setTimeout(() => setFeedback(null), 3500);
+      } else {
+        setFeedback({ type: "error", text: data.error || "Failed to complete call" });
+      }
+    } catch {
+      setFeedback({ type: "error", text: "Network error" });
+    } finally {
+      setUpdatingDoctrine(false);
+    }
+  }
+
   return (
     <div className="override-panel">
       <div className="override-header">
@@ -193,6 +231,68 @@ export default function OverridePanel({ thread }: OverridePanelProps) {
           </div>
         )}
       </div>
+
+      {stage === "booked" && (
+        <div
+          style={{
+            padding: "12px 14px",
+            marginBottom: 12,
+            background: "rgba(0,255,171,0.08)",
+            border: "1px solid rgba(0,255,171,0.3)",
+            borderRadius: 6,
+          }}
+        >
+          <div style={{ fontSize: 11, color: "#00ffab", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>
+            Call booked {thread.booked_for ? `\u2014 ${new Date(thread.booked_for).toLocaleString()}` : ""}
+          </div>
+          {thread.booking_email && (
+            <div style={{ fontSize: 12, color: "#ccc", marginBottom: 10 }}>
+              Prospect email: <code style={{ color: "#00ffab" }}>{thread.booking_email}</code>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => handleCompleteCall("won")}
+              disabled={updatingDoctrine}
+              style={{
+                flex: 1,
+                background: "#00ffab",
+                color: "#000",
+                border: "none",
+                padding: "8px 12px",
+                borderRadius: 4,
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: updatingDoctrine ? "wait" : "pointer",
+              }}
+            >
+              {updatingDoctrine ? "..." : "Call done \u2014 send repo"}
+            </button>
+            <button
+              onClick={() => handleCompleteCall("lost")}
+              disabled={updatingDoctrine}
+              style={{
+                flex: 1,
+                background: "transparent",
+                color: "#ff8a65",
+                border: "1px solid rgba(255,138,101,0.4)",
+                padding: "8px 12px",
+                borderRadius: 4,
+                fontWeight: 600,
+                fontSize: 12,
+                cursor: updatingDoctrine ? "wait" : "pointer",
+              }}
+            >
+              Call lost
+            </button>
+          </div>
+          {thread.repo_delivered_at && (
+            <div style={{ fontSize: 10, color: "#00ffab", marginTop: 8, opacity: 0.7 }}>
+              Repo already delivered: {new Date(thread.repo_delivered_at).toLocaleString()}
+            </div>
+          )}
+        </div>
+      )}
 
       {thread.pending_ai_draft && !["dead", "closed_lost", "closed_won"].includes(stage) && (
         <div>

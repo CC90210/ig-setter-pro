@@ -6,12 +6,12 @@
   "regions": ["iad1"],
   "crons": [
     {
-      "path": "/api/cron/stale-leads",
-      "schedule": "0 9 * * *"
+      "path": "/api/cron/check-bookings",
+      "schedule": "0 13 * * *"
     },
     {
-      "path": "/api/cron/send-outreach?limit=10",
-      "schedule": "0 17 * * *"
+      "path": "/api/cron/stale-leads",
+      "schedule": "0 9 * * *"
     }
   ]
 }

@@ -68,7 +68,19 @@ export async function respond(input: ResponderInput): Promise<ResponderOutput> {
     temperature: input.isFriend ? 0.85 : 0.75,
   });
 
-  const cleaned = sanitizeReply(res.text);
+  let cleaned = sanitizeReply(res.text);
+
+  // Replace {{BOOKING_LINK}} placeholder with actual calendar URL when in book_call stage.
+  // This keeps the doctrine prompt portable (no hardcoded URLs in pipeline.ts) and lets us
+  // rotate the calendar link via env var without a code deploy.
+  if (input.stage === "book_call") {
+    const link = (process.env.BOOKING_LINK || "").trim() || "https://calendar.app.google/tpfvJYBGircnGu8G8";
+    cleaned = cleaned.replace(/\{\{BOOKING_LINK\}\}/g, link);
+    // Safety: if Sonnet forgot to include a link in a book_call reply, append it.
+    if (!cleaned.includes("calendar.app.google") && !cleaned.includes(link)) {
+      cleaned = cleaned.trim() + `\n\n${link}`;
+    }
+  }
 
   return {
     reply: cleaned,
