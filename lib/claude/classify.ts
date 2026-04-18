@@ -68,7 +68,8 @@ Given the latest inbound message + recent thread context, output STRICT JSON wit
 
 Rules:
 - Output ONLY the JSON object. No prose. No markdown fences.
-- "booked_call" must be true only if they clearly accepted — words like "yes let's talk", "ok book it", "DM me a link".
+- "booked_call" is ONLY true when the user has actually COMPLETED a booking — for example, they say "I booked for Tuesday at 3", "I just booked a time", "I'm booked in", or similar past-tense confirmation. Merely saying "send me the link", "yes let's do it", or "I'm in" does NOT mean booked_call=true — that's asked_for_help=true instead. The calendar-check cron is the only thing that flips to booked stage; classifier should be conservative on this signal.
+- "asked_for_help" = true when the user is asking you to send the link, solve their problem, give them the product, schedule something, etc. This is the normal "they're ready for the next step" signal.
 - "objection" can be non-null even when intent is "question" — asking "how much?" is intent=question but objection=price.
 - "bot_check" and intent="bot_check" should both fire when they question your realness.
 - "out_of_icp" — only set true if strong signal. Don't guess.
