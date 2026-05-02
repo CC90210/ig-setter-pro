@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
-// POST — Receives cleaned DM payload from n8n
+// POST — Receives cleaned DM payload from Python daemon
 export async function POST(req: NextRequest) {
   const secret = (req.headers.get("x-webhook-secret") || "").trim();
   const expected = (process.env.WEBHOOK_SECRET || "").trim();
@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Check account's auto_send setting for n8n
+    // Return account auto-send preference to the Python daemon.
     let autoSendEnabled = false;
     try {
       const acctResult = await db().execute({
@@ -246,9 +246,9 @@ export async function POST(req: NextRequest) {
 
     // Run doctrine if:
     //  - inbound message
-    //  - n8n didn't pre-generate a draft (pending_ai_draft is null)
+    //  - Python did not send a pre-generated draft (pending_ai_draft is null)
     //  - the ANTHROPIC_API_KEY is configured
-    // This lets the system work end-to-end even if n8n only does persist.
+    // This lets the dashboard generate an operator draft from raw Python intake.
     let doctrineResult: {
       draft: string;
       stage: string;

@@ -229,7 +229,7 @@ async function sendTeaserEmail(to: string, callStartIso: string): Promise<{ subj
     `it's PULSE — the instagram DM system i built to replace manychat. you're getting the full repo right after our call.`,
     ``,
     `what to expect on the call:`,
-    `- i show you the live dashboard, doctrine layer, and n8n pipeline running on my account`,
+    `- i show you the live dashboard, doctrine layer, and Python daemon pipeline running on my account`,
     `- you tell me your situation — DM volume, what you've tried, what's broken`,
     `- we figure out whether you install it yourself or oasis sets it up for you`,
     `- repo link hits your inbox within 30 min of us hanging up`,

@@ -36,7 +36,7 @@ async function getGoogleAccessToken(): Promise<string> {
 }
 
 export async function POST(req: NextRequest) {
-  // Accept either the webhook-secret header (n8n / external callers) OR a same-origin
+  // Accept either the webhook-secret header (Python/external callers) OR a same-origin
   // request from the dashboard UI. Dashboard pages are already behind whatever auth
   // wraps the app; exposing this to any same-origin caller is acceptable for the
   // single-operator dashboard design (CC is the only human using it).
@@ -152,7 +152,7 @@ async function sendRepoDeliveryEmail(to: string, firstName: string): Promise<{ s
     ``,
     `https://github.com/CC90210/ig-setter-pro`,
     ``,
-    `start with SETUP.md — it's a sequential walkthrough (turso → n8n → meta app → vercel). 30 min if you have the accounts already, 60 if you're signing up fresh.`,
+    `start with SETUP.md — it's a sequential walkthrough (turso → Python daemon → meta app → vercel). 30 min if you have the accounts already, 60 if you're signing up fresh.`,
     ``,
     `three options from here, pick one and reply:`,
     ``,

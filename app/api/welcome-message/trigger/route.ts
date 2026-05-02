@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-// Called by n8n when a NEW subscriber's first DM arrives.
+// Called by the Python daemon when a NEW subscriber's first DM arrives.
 // Returns the active welcome message for the account, or 404 if none/inactive.
 export async function POST(req: NextRequest) {
   const authError = requireAuth(req);

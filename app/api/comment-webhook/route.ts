@@ -15,7 +15,7 @@ interface CommentTriggerRow {
   follow_gate_message: string;
 }
 
-// POST — Called by n8n after Meta comment webhook fires
+// POST — Called by Python daemon after Meta comment webhook fires
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-webhook-secret");
   if (secret !== process.env.WEBHOOK_SECRET) {
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Follow gate check.
-    // is_following defaults to true when n8n does not supply it (optimistic path),
+    // is_following defaults to true when the intake layer does not supply it (optimistic path),
     // so callers that skip the follow-check step still get DMs sent.
     const requiresFollow = !!matchedTrigger.require_follow;
     const isFollowing = body.is_following !== false;
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("[comment-webhook]", err);
-    // Return 200 so n8n does not retry on transient errors
+    // Return 200 so the intake layer does not retry on transient errors
     return NextResponse.json({ ok: false, error: "internal" }, { status: 200 });
   }
 }

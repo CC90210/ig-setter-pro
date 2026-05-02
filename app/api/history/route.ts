@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Resolve by ig_thread_id (what n8n sends) or internal id
+    // Resolve by ig_thread_id (what the Python daemon sends) or internal id
     const threadResult = await db().execute({
       sql: "SELECT id FROM dm_threads WHERE ig_thread_id = ? OR id = ? LIMIT 1",
       args: [threadId, threadId],

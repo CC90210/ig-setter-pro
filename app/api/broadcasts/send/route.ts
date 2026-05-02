@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
       args: [totalRecipients, now, body.broadcast_id],
     });
 
-    // Create pending delivery rows for n8n to process
+    // Create pending delivery rows for the Python sender to process
     for (const subscriberId of subscriberIds) {
       try {
         await db().execute({
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Fetch full recipient details for n8n dispatch
+    // Fetch full recipient details for Python dispatch
     const recipientsResult = await db().execute({
       sql: `SELECT s.id, s.ig_user_id, s.username, s.display_name
             FROM subscribers s

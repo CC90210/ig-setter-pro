@@ -1,7 +1,7 @@
 /**
  * POST /api/ai/reply
  *
- * The central AI entry point — n8n calls this instead of calling Claude directly.
+ * The central AI entry point — Python daemon calls this instead of calling Claude directly.
  *
  * Body:
  *   { account_id, thread_id, inbound_message, force_stage?, force_friend? }

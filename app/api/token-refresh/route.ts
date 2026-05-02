@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-// POST — Called by n8n cron to refresh expiring tokens
+// POST — Called by Python daemon cron to refresh expiring tokens
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-webhook-secret");
   if (secret !== process.env.WEBHOOK_SECRET) {

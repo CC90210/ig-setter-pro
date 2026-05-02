@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 interface StatusChecks {
   turso: boolean;
-  n8n: boolean;
+  python: boolean;
   anthropic: boolean;
   instagram: boolean;
 }
