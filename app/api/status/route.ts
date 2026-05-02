@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const checks = {
     turso: false,
-    n8n: false,
+    python: false,
     anthropic: false,
     instagram: false,
   };
@@ -19,8 +19,8 @@ export async function GET() {
     checks.turso = false;
   }
 
-  // Check n8n (env configured)
-  checks.n8n = !!(process.env.N8N_OVERRIDE_WEBHOOK_URL && process.env.N8N_BASE_URL);
+  // Check Python Playwright bridge (shared webhook secret configured)
+  checks.python = !!process.env.WEBHOOK_SECRET;
 
   // Check Anthropic (env configured)
   checks.anthropic = !!process.env.ANTHROPIC_API_KEY;

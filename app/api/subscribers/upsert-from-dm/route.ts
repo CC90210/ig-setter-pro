@@ -4,7 +4,7 @@ import { requireAuth } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-// Internal endpoint — called by webhook/route.ts and n8n when a DM arrives.
+// Internal endpoint — called by webhook/route.ts and Python daemon when a DM arrives.
 // Upserts a subscriber row to keep the subscriber list in sync with DM traffic.
 export async function POST(req: NextRequest) {
   const authError = requireAuth(req);

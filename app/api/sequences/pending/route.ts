@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 export const dynamic = "force-dynamic";
 
 // GET — Fetch active sequence enrollments with next_step_at <= now
-// Called by n8n every 5 minutes to execute sequence steps
+// Called by scheduled automation every 5 minutes to execute sequence steps
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-webhook-secret");
   if (secret !== process.env.WEBHOOK_SECRET) {

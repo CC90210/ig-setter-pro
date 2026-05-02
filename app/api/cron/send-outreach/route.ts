@@ -4,8 +4,8 @@
  * Pops the highest-priority queued prospect per account, generates a cold
  * opener via the doctrine (stage=cold), and returns the draft.
  *
- * Note: actual IG send is performed by n8n (this endpoint returns the draft
- * for n8n to route through the Meta Graph API).
+ * Note: actual IG send is performed by the Python Playwright daemon (this endpoint returns the draft
+ * for Python to route through the logged-in browser).
  *
  * Schedule in vercel.json. Idempotent per-prospect (status moves queued → sending).
  *
@@ -102,9 +102,9 @@ export async function GET(req: NextRequest) {
         },
       });
 
-      // Stays 'sending' — n8n must PATCH to 'sent' after Meta Graph API succeeds.
+      // Stays 'sending' — Python daemon must PATCH to 'sent' after Meta Graph API succeeds.
       // Draft is persisted in last_error column temporarily? No — store in a separate field.
-      // For now the draft is returned in the response body (n8n consumes it there).
+      // For now the draft is returned in the response body for the Python sender.
       await db().execute({
         sql: `UPDATE prospect_queue SET personalization = ?, updated_at = ? WHERE id = ?`,
         args: [out.reply, now, p.id],

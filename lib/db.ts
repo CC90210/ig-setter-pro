@@ -174,6 +174,24 @@ export interface DMMessage {
   override: number;
 }
 
+export interface PythonOutboundQueueItem {
+  id: string;
+  account_id: string;
+  thread_id: string;
+  ig_thread_id: string;
+  ig_user_id: string;
+  username: string;
+  message: string;
+  status: "pending" | "sending" | "sent" | "failed";
+  is_ai: number;
+  attempts: number;
+  last_error: string | null;
+  claimed_at: string | null;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface DailyStats {
   id: string;
   account_id: string;

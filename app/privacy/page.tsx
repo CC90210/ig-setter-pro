@@ -214,7 +214,7 @@ export default function PrivacyPolicyPage() {
               is sent to Anthropic&rsquo;s API to produce draft replies.
             </li>
             <li style={liStyle}>
-              <strong>n8n</strong> — workflow execution for automations and
+              <strong>Python daemon</strong> — workflow execution for automations and
               sequences.
             </li>
             <li style={liStyle}>
@@ -324,7 +324,7 @@ export default function PrivacyPolicyPage() {
           <p style={pStyle}>
             Data may be processed in Canada, the United States, and other
             countries where our sub-processors (Anthropic, Vercel, Turso,
-            n8n, Meta) operate infrastructure. By using PULSE, you consent to
+            Meta) operate infrastructure. By using PULSE, you consent to
             such transfers under standard contractual safeguards.
           </p>
         </section>

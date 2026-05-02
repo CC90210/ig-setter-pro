@@ -9,7 +9,7 @@ interface AccountRow {
 }
 
 // GET — Proxy a follow-status check to the Meta Graph API.
-// Called by n8n before invoking /api/comment-webhook when require_follow is set.
+// Called by the Python intake before invoking /api/comment-webhook when require_follow is set.
 export async function GET(req: NextRequest) {
   const secret = req.headers.get("x-webhook-secret");
   if (secret !== process.env.WEBHOOK_SECRET) {

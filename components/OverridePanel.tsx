@@ -38,7 +38,7 @@ export default function OverridePanel({ thread }: OverridePanelProps) {
         setFeedback({ type: "error", text: err.error || "Failed to send" });
       } else {
         setMessage("");
-        setFeedback({ type: "success", text: "Sent" });
+        setFeedback({ type: "success", text: "Queued for Python send" });
         setTimeout(() => setFeedback(null), 2500);
       }
     } catch {
@@ -57,14 +57,14 @@ export default function OverridePanel({ thread }: OverridePanelProps) {
       const res = await fetch("/api/override", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ thread_id: thread.id, message: thread.pending_ai_draft }),
+        body: JSON.stringify({ thread_id: thread.id, message: thread.pending_ai_draft, is_ai: true }),
       });
 
       if (!res.ok) {
         const err = await res.json();
         setFeedback({ type: "error", text: err.error || "Failed to send" });
       } else {
-        setFeedback({ type: "success", text: "AI draft sent" });
+        setFeedback({ type: "success", text: "AI draft queued for Python send" });
         setTimeout(() => setFeedback(null), 2500);
       }
     } catch {
@@ -304,7 +304,7 @@ export default function OverridePanel({ thread }: OverridePanelProps) {
             disabled={sending}
             style={{ width: "100%", marginBottom: 12 }}
           >
-            {sending ? "Sending..." : "Approve & Send AI Draft"}
+            {sending ? "Queueing..." : "Approve AI Draft"}
           </button>
         </div>
       )}
@@ -330,7 +330,7 @@ export default function OverridePanel({ thread }: OverridePanelProps) {
           onClick={handleSend}
           disabled={sending || !message.trim()}
         >
-          {sending ? "Sending..." : "Send Override"}
+          {sending ? "Queueing..." : "Queue Override"}
         </button>
       </div>
 
