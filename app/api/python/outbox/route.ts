@@ -47,8 +47,10 @@ export async function GET(req: NextRequest) {
       sql: `UPDATE python_outbound_queue
             SET status = 'sending', attempts = attempts + 1,
                 claimed_at = ?, updated_at = ?
-            WHERE id = ? AND status IN ('pending', 'sending')`,
-      args: [now, now, row.id],
+            WHERE id = ?
+              AND attempts < 5
+              AND (status = 'pending' OR (status = 'sending' AND (claimed_at IS NULL OR claimed_at < ?)))`,
+      args: [now, now, row.id, staleCutoff],
     });
     if (claimed.rowsAffected > 0) commands.push(row);
   }
