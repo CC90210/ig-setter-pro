@@ -272,6 +272,10 @@ export default function SettingsPage() {
   const [wmSaving, setWmSaving] = useState(false);
   const [wmSaved, setWmSaved] = useState(false);
 
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [spSaving, setSpSaving] = useState(false);
+  const [spSaved, setSpSaved] = useState(false);
+
   const [showCreateQR, setShowCreateQR] = useState(false);
   const [showCreateGT, setShowCreateGT] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -314,6 +318,10 @@ export default function SettingsPage() {
         setWmActive(Boolean(wm.is_active));
       }
 
+      // Brand context lives on the account row
+      const acct = accounts.find((a) => a.id === activeAccountId);
+      if (acct) setSystemPrompt(acct.system_prompt ?? "");
+
       setQuickReplies(qrData.quick_replies ?? []);
       setGrowthTools(gtData.growth_tools ?? []);
     } catch {
@@ -354,6 +362,32 @@ export default function SettingsPage() {
       // silent
     } finally {
       setWmSaving(false);
+    }
+  }
+
+  async function saveSystemPrompt() {
+    if (!activeAccountId) return;
+    setSpSaving(true);
+    setSpSaved(false);
+    try {
+      await fetch("/api/accounts", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-secret": DASHBOARD_SECRET,
+        },
+        body: JSON.stringify({
+          id: activeAccountId,
+          system_prompt: systemPrompt,
+        }),
+      });
+      setSpSaved(true);
+      setTimeout(() => setSpSaved(false), 3000);
+      loadAccounts();
+    } catch {
+      // silent
+    } finally {
+      setSpSaving(false);
     }
   }
 
@@ -466,7 +500,7 @@ export default function SettingsPage() {
 
             <SettingsSection
               title="Welcome Message"
-              subtitle="Automatically sent when a new subscriber first messages you"
+              subtitle="Sent when someone follows you for the first time. NOT sent when a stranger DMs you — DMs always go through the conversational doctrine."
             >
               <div className="form-toggle-row" style={{ marginBottom: 16 }}>
                 <span className="settings-info-label">Welcome Message Active</span>
@@ -523,6 +557,37 @@ export default function SettingsPage() {
                   Sent {welcomeMessage.times_sent} times
                 </div>
               )}
+            </SettingsSection>
+
+            <SettingsSection
+              title="Brand Context"
+              subtitle="Maven reads this on every reply. Drop your bio summary, OASIS funnel link, Google Calendar booking link, link tree URL, and anything else the AI should know about you. Concrete > clever."
+            >
+              <label className="form-label">System prompt (account-specific)</label>
+              <textarea
+                className="form-textarea"
+                placeholder={`Examples:\n\nWho I am: Conaugh McKenna, runs OASIS AI — done-for-you AI agents for solo founders.\n\nLink tree: https://linktr.ee/ccmckenna\nBooking link: https://calendar.app.google/...\n\nWhen they want to book a call, send the booking link.\nWhen they want resources or to learn more, send the link tree.\nWhen they ask about pricing, say "depends on what you need — what are you trying to automate?" then ask for specifics.\n\nNever pitch. Always ask one question. Sound like a peer, not a salesman.`}
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                rows={12}
+              />
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
+                <button
+                  className="btn-primary"
+                  onClick={saveSystemPrompt}
+                  disabled={spSaving}
+                >
+                  {spSaving ? "Saving..." : "Save Brand Context"}
+                </button>
+                {spSaved && (
+                  <span style={{ color: "var(--mint)", fontSize: 12, fontFamily: "var(--font-mono)" }}>
+                    Saved ✓
+                  </span>
+                )}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                {systemPrompt.length} chars · injected as ACCOUNT-SPECIFIC CONTEXT block in every doctrine reply
+              </div>
             </SettingsSection>
 
             <SettingsSection

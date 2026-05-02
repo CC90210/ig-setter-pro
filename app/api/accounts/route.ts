@@ -5,7 +5,7 @@ import { requireAuth } from "@/lib/auth";
 export async function GET() {
   try {
     const result = await db().execute(
-      "SELECT id, ig_username, ig_page_id, auto_send_enabled, display_name, is_active, token_expires_at, created_at, updated_at FROM accounts ORDER BY created_at ASC"
+      "SELECT id, ig_username, ig_page_id, auto_send_enabled, display_name, is_active, system_prompt, token_expires_at, created_at, updated_at FROM accounts ORDER BY created_at ASC"
     );
     return NextResponse.json({ accounts: result.rows });
   } catch (err) {
