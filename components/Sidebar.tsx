@@ -28,17 +28,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     items: [
       { label: "Inbox", href: "/", icon: "▤" },
-      { label: "Prospects", href: "/prospects", icon: "◎" },
+      { label: "Triggers", href: "/triggers", icon: "◆" },
       { label: "Doctrine", href: "/doctrine", icon: "◇" },
       { label: "Analytics", href: "/analytics", icon: "▦" },
-    ],
-  },
-  {
-    label: "Distribution",
-    items: [
-      { label: "Automations", href: "/automations", icon: "◆" },
-      { label: "Broadcasts", href: "/broadcasts", icon: "◈" },
-      { label: "Subscribers", href: "/subscribers", icon: "◉" },
     ],
   },
   {
