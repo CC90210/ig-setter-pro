@@ -53,6 +53,26 @@ INSERT INTO dm_threads SELECT * FROM dm_threads_old_006;
 -- Drop old
 DROP TABLE dm_threads_old_006;
 
+-- Rebuild dm_messages too. SQLite rewrites child foreign keys to the renamed
+-- parent table while foreign_keys is OFF, so without this repair
+-- dm_messages.thread_id can end up pointing at dm_threads_old_006.
+ALTER TABLE dm_messages RENAME TO dm_messages_old_006;
+
+CREATE TABLE dm_messages (
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  thread_id TEXT NOT NULL REFERENCES dm_threads(id) ON DELETE CASCADE,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  ig_message_id TEXT,
+  direction TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound')),
+  content TEXT NOT NULL,
+  sent_at TEXT DEFAULT (datetime('now')),
+  is_ai INTEGER DEFAULT 0,
+  override INTEGER DEFAULT 0
+);
+
+INSERT INTO dm_messages SELECT * FROM dm_messages_old_006;
+DROP TABLE dm_messages_old_006;
+
 -- Rebuild indexes
 CREATE INDEX IF NOT EXISTS idx_dm_threads_account ON dm_threads(account_id);
 CREATE INDEX IF NOT EXISTS idx_dm_threads_status ON dm_threads(status);
@@ -62,6 +82,9 @@ CREATE INDEX IF NOT EXISTS idx_dm_threads_account_stage ON dm_threads(account_id
 CREATE INDEX IF NOT EXISTS idx_dm_threads_last_inbound ON dm_threads(last_inbound_at);
 CREATE INDEX IF NOT EXISTS idx_dm_threads_booked_for ON dm_threads(booked_for);
 CREATE INDEX IF NOT EXISTS idx_dm_threads_friend ON dm_threads(is_friend) WHERE is_friend = 1;
+CREATE INDEX IF NOT EXISTS idx_dm_messages_thread ON dm_messages(thread_id);
+CREATE INDEX IF NOT EXISTS idx_dm_messages_sent ON dm_messages(sent_at);
+CREATE INDEX IF NOT EXISTS idx_dm_messages_account ON dm_messages(account_id);
 
 COMMIT;
 

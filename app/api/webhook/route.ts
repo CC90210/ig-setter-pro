@@ -176,21 +176,23 @@ export async function POST(req: NextRequest) {
     const qualifiedInc = statusChanged && body.ai_status === "qualified" ? 1 : 0;
     const bookedInc = statusChanged && body.ai_status === "booked" ? 1 : 0;
     const closedInc = statusChanged && body.ai_status === "closed" ? 1 : 0;
-    const aiDraftInc = body.is_ai ? 1 : 0;
+    const autoSentInc = body.direction === "outbound" && body.is_ai ? 1 : 0;
+    const aiDraftInc = body.pending_ai_draft ? 1 : 0;
 
     await db().execute({
       sql: `INSERT INTO daily_stats (id, account_id, date, total_handled, qualified, booked, closed, revenue, replies_received, deals_progressed, auto_sent, ai_drafts)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, 0, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?)
         ON CONFLICT(account_id, date) DO UPDATE SET
           total_handled = total_handled + excluded.total_handled,
           qualified = qualified + excluded.qualified,
           booked = booked + excluded.booked,
           closed = closed + excluded.closed,
           replies_received = replies_received + excluded.replies_received,
+          auto_sent = auto_sent + excluded.auto_sent,
           ai_drafts = ai_drafts + excluded.ai_drafts`,
       args: [
         generateId(), body.account_id, today,
-        isInbound, qualifiedInc, bookedInc, closedInc, isInbound, aiDraftInc,
+        isInbound, qualifiedInc, bookedInc, closedInc, isInbound, autoSentInc, aiDraftInc,
       ],
     });
 
@@ -281,6 +283,10 @@ export async function POST(req: NextRequest) {
           await db().execute({
             sql: `UPDATE dm_threads SET pending_ai_draft = ?, updated_at = ? WHERE id = ?`,
             args: [r.draft, new Date().toISOString(), threadId],
+          });
+          await db().execute({
+            sql: `UPDATE daily_stats SET ai_drafts = ai_drafts + 1 WHERE account_id = ? AND date = ?`,
+            args: [body.account_id, today],
           });
         }
       } catch (e) {
