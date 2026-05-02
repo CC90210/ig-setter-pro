@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Prospect, Account } from "@/lib/db";
-import AccountSwitcher from "@/components/AccountSwitcher";
+import Sidebar from "@/components/Sidebar";
 
 export default function ProspectsPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -89,37 +89,15 @@ export default function ProspectsPage() {
   const activeAccount = accounts.find((a) => a.id === activeAccountId) || null;
 
   return (
-    <div className="app">
-      <header className="navbar">
-        <div className="navbar-left">
-          <a href="/" className="brand-link">
-            <h1 className="brand">
-              <span className="brand-icon">◈</span>
-              PULSE
-              <span className="brand-by">by OASIS</span>
-            </h1>
-          </a>
-          <nav className="nav-tabs">
-            <a href="/" className="nav-tab">Inbox</a>
-            <a href="/prospects" className="nav-tab nav-tab--active">Prospects</a>
-            <a href="/doctrine" className="nav-tab">Doctrine</a>
-            <a href="/subscribers" className="nav-tab">Subscribers</a>
-            <a href="/automations" className="nav-tab">Automations</a>
-            <a href="/broadcasts" className="nav-tab">Broadcasts</a>
-            <a href="/analytics" className="nav-tab">Analytics</a>
-          </nav>
-          <AccountSwitcher
-            accounts={accounts}
-            activeId={activeAccountId}
-            onSelect={setActiveAccountId}
-          />
-        </div>
-        <div className="navbar-right">
-          <div className="user-avatar">{activeAccount?.ig_username?.[0]?.toUpperCase() || "?"}</div>
-        </div>
-      </header>
+    <div className="app-shell">
+      <Sidebar
+        accounts={accounts}
+        activeAccountId={activeAccountId}
+        onAccountChange={setActiveAccountId}
+        activeAccount={activeAccount}
+      />
 
-      <main style={{ padding: "24px 32px", maxWidth: 1400, margin: "0 auto" }}>
+      <main className="page-main">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 24 }}>Prospect Queue</h2>

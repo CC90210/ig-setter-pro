@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Account } from "@/lib/db";
-import DashboardNav from "@/components/DashboardNav";
+import Sidebar from "@/components/Sidebar";
 
 type Period = "7d" | "30d" | "90d";
 
@@ -143,8 +143,8 @@ export default function AnalyticsPage() {
     period === "7d" ? "last 7 days" : period === "30d" ? "last 30 days" : "last 90 days";
 
   return (
-    <div className="app">
-      <DashboardNav
+    <div className="app-shell">
+      <Sidebar
         accounts={accounts}
         activeAccountId={activeAccountId}
         onAccountChange={(id) => setActiveAccountId(id)}

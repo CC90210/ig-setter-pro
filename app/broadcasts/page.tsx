@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Account, Broadcast, Tag } from "@/lib/db";
-import DashboardNav from "@/components/DashboardNav";
+import Sidebar from "@/components/Sidebar";
 import { formatRelativeTime } from "@/lib/types";
 
 const DASHBOARD_SECRET = "DASHBOARD_SECRET";
@@ -359,8 +359,8 @@ export default function BroadcastsPage() {
   const others = broadcasts.filter((b) => b.status !== "draft");
 
   return (
-    <div className="app">
-      <DashboardNav
+    <div className="app-shell">
+      <Sidebar
         accounts={accounts}
         activeAccountId={activeAccountId}
         onAccountChange={(id) => setActiveAccountId(id)}

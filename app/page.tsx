@@ -9,8 +9,7 @@ import ThreadFeed from "@/components/ThreadFeed";
 import ConversationChain from "@/components/ConversationChain";
 import OverridePanel from "@/components/OverridePanel";
 import DailySummary from "@/components/DailySummary";
-import AccountSwitcher from "@/components/AccountSwitcher";
-import AutoSendToggle from "@/components/AutoSendToggle";
+import Sidebar from "@/components/Sidebar";
 
 export default function Home() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -68,79 +67,58 @@ export default function Home() {
   const activeAccount = accounts.find((a) => a.id === activeAccountId) || null;
 
   return (
-    <div className="app">
-      <StatusBanner />
+    <div className="app-shell">
+      <Sidebar
+        accounts={accounts}
+        activeAccountId={activeAccountId}
+        onAccountChange={(id) => {
+          setActiveAccountId(id);
+          setSelectedId(null);
+        }}
+        activeAccount={activeAccount}
+        onRefresh={loadAccounts}
+      />
 
-      <header className="navbar">
-        <div className="navbar-left">
-          <a href="/" className="brand-link">
-            <h1 className="brand">
-              <span className="brand-icon">◈</span>
-              PULSE
-              <span className="brand-by">by OASIS</span>
-            </h1>
-          </a>
-          <nav className="nav-tabs">
-            <a href="/" className="nav-tab nav-tab--active">Inbox</a>
-            <a href="/prospects" className="nav-tab">Prospects</a>
-            <a href="/doctrine" className="nav-tab">Doctrine</a>
-            <a href="/subscribers" className="nav-tab">Subscribers</a>
-            <a href="/automations" className="nav-tab">Automations</a>
-            <a href="/broadcasts" className="nav-tab">Broadcasts</a>
-            <a href="/analytics" className="nav-tab">Analytics</a>
-          </nav>
-          <AccountSwitcher
-            accounts={accounts}
-            activeId={activeAccountId}
-            onSelect={(id) => {
-              setActiveAccountId(id);
-              setSelectedId(null);
-            }}
-          />
-        </div>
-        <div className="navbar-center">
-          <StatsBar accountId={activeAccountId} />
-        </div>
-        <div className="navbar-right">
-          {activeAccount && (
-            <AutoSendToggle
-              accountId={activeAccount.id}
-              enabled={Boolean(activeAccount.auto_send_enabled)}
-              onToggle={() => loadAccounts()}
-            />
-          )}
-          <div className="user-avatar">
-            {activeAccount?.ig_username?.[0]?.toUpperCase() || "?"}
+      <div className="app-shell__body">
+        <StatusBanner />
+
+        <header className="app-shell__topbar">
+          <div className="app-shell__topbar-title">
+            <h2>Inbox</h2>
+            <span>conversations · live</span>
           </div>
-        </div>
-      </header>
+          <div className="app-shell__topbar-stats">
+            <StatsBar accountId={activeAccountId} />
+          </div>
+        </header>
 
-      <main className="dashboard">
-        <aside className="sidebar-left">
-          <ThreadFeed
-            threads={threads}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            loading={loading}
-          />
-        </aside>
+        <main className="app-shell__main">
+          <aside className="sidebar-left">
+            <ThreadFeed
+              threads={threads}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              loading={loading}
+            />
+          </aside>
 
-        <section className="main-panel">
-          {selectedThread ? (
-            <ConversationChain thread={selectedThread} />
-          ) : (
-            <div className="empty-state">
-              <div className="empty-state-icon">&#9674;</div>
-              <p>Select a conversation to view</p>
-            </div>
-          )}
-        </section>
+          <section className="main-panel">
+            {selectedThread ? (
+              <ConversationChain thread={selectedThread} />
+            ) : (
+              <div className="empty-state">
+                <div className="empty-state-icon">&#9674;</div>
+                <p>Select a conversation to view</p>
+              </div>
+            )}
+          </section>
 
-        <aside className="sidebar-right">
-          {selectedThread && <OverridePanel thread={selectedThread} />}
-          <DailySummary accountId={activeAccountId} />
-        </aside>
-      </main>
+          <aside className="sidebar-right">
+            {selectedThread && <OverridePanel thread={selectedThread} />}
+            <DailySummary accountId={activeAccountId} />
+          </aside>
+        </main>
+      </div>
     </div>
   );
 }
