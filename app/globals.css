@@ -2186,6 +2186,31 @@ body {
   transition: all 0.15s;
 }
 
+.thread-action-btn {
+  padding: 5px 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.thread-action-btn:hover {
+  border-color: var(--mint);
+  color: var(--mint);
+}
+
+.thread-action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.thread-action-btn--danger { color: rgba(248,113,113,0.8); border-color: rgba(248,113,113,0.25); }
+.thread-action-btn--danger:hover { color: #f87171; border-color: rgba(248,113,113,0.6); }
+
 .btn-danger:hover {
   background: rgba(248, 113, 113, 0.08);
   border-color: rgba(248, 113, 113, 0.5);

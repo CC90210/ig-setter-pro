@@ -8,9 +8,13 @@ interface ConversationChainProps {
   thread: DMThread;
 }
 
+const DASHBOARD_SECRET =
+  process.env.NEXT_PUBLIC_DASHBOARD_SECRET || "dashboard-secret";
+
 export default function ConversationChain({ thread }: ConversationChainProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<DMMessage[]>([]);
+  const [busy, setBusy] = useState(false);
 
   const loadMessages = useCallback(async () => {
     try {
@@ -30,12 +34,54 @@ export default function ConversationChain({ thread }: ConversationChainProps) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  async function patchThread(body: Record<string, unknown>) {
+    setBusy(true);
+    try {
+      await fetch(`/api/threads/${thread.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-secret": DASHBOARD_SECRET,
+        },
+        body: JSON.stringify(body),
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function archiveThread() {
+    if (!confirm("Archive this thread? Maven will not reply to new messages from this contact until you re-open it.")) return;
+    await patchThread({ status: "closed" });
+  }
+
+  async function reopenThread() {
+    await patchThread({ status: "active" });
+  }
+
+  async function deleteThread() {
+    if (!confirm("Delete this thread permanently? Message history will be lost.")) return;
+    setBusy(true);
+    try {
+      await fetch(`/api/threads/${thread.id}`, {
+        method: "DELETE",
+        headers: { "x-api-secret": DASHBOARD_SECRET },
+      });
+      window.location.reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const statusLabel: Record<string, string> = {
     active: "Active — AI is handling this",
     qualified: "Qualified — awaiting next step",
     booked: "Call Booked",
-    closed: "Deal Closed",
+    closed: "Archived — Maven will not reply",
   };
+
+  const isFriend = Boolean(thread.is_friend);
+  const isArchived = thread.status === "closed";
 
   return (
     <div className="conversation-chain">
@@ -60,19 +106,45 @@ export default function ConversationChain({ thread }: ConversationChainProps) {
           </div>
         </div>
         <div className="chain-header-right">
-          {thread.status === "active" && (
+          {thread.status === "active" && !isFriend && (
             <div className="ai-running-badge">
               <span className="ai-running-dot" />
               AI Running
             </div>
           )}
-          {thread.status === "closed" && <div className="closed-badge">Deal Closed</div>}
-          {thread.status === "booked" && <div className="booked-badge">Call Booked</div>}
-          {thread.conversation_summary && (
-            <div style={{ fontSize: 10, color: "#555", maxWidth: 200, textAlign: "right", fontFamily: "var(--font-mono)" }}>
-              {thread.conversation_summary}
+          {isFriend && (
+            <div className="ai-running-badge" style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.3)", color: "#f59e0b" }}>
+              FRIEND MODE
             </div>
           )}
+          {isArchived && <div className="closed-badge">Archived</div>}
+          {thread.status === "booked" && <div className="booked-badge">Call Booked</div>}
+
+          <button
+            className="thread-action-btn"
+            disabled={busy}
+            onClick={() => patchThread({ is_friend: !isFriend })}
+            title={isFriend ? "Switch back to NEPQ doctrine" : "Drop selling, talk like a friend"}
+          >
+            {isFriend ? "Unfriend" : "Friend"}
+          </button>
+          {isArchived ? (
+            <button className="thread-action-btn" disabled={busy} onClick={reopenThread} title="Resume Maven on this thread">
+              Re-open
+            </button>
+          ) : (
+            <button className="thread-action-btn" disabled={busy} onClick={archiveThread} title="Stop Maven from replying to this thread">
+              Archive
+            </button>
+          )}
+          <button
+            className="thread-action-btn thread-action-btn--danger"
+            disabled={busy}
+            onClick={deleteThread}
+            title="Permanently delete thread + message history"
+          >
+            Delete
+          </button>
         </div>
       </div>
 
