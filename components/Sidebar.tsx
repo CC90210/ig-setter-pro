@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import AccountSwitcher from "@/components/AccountSwitcher";
 import AutoSendToggle from "@/components/AutoSendToggle";
+import DaemonStatus from "@/components/DaemonStatus";
 import type { Account } from "@/lib/db";
 
 interface SidebarProps {
@@ -93,6 +94,7 @@ export default function Sidebar({
       </nav>
 
       <div className="app-sidebar__footer">
+        <DaemonStatus />
         {activeAccount && (
           <div className="app-sidebar__auto-send">
             <AutoSendToggle
