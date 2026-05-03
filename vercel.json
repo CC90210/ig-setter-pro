@@ -3,15 +3,5 @@
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "regions": ["iad1"],
-  "crons": [
-    {
-      "path": "/api/cron/check-bookings",
-      "schedule": "0 13 * * *"
-    },
-    {
-      "path": "/api/cron/stale-leads",
-      "schedule": "0 9 * * *"
-    }
-  ]
+  "regions": ["iad1"]
 }
