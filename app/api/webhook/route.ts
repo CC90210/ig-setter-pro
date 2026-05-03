@@ -94,6 +94,18 @@ export async function POST(req: NextRequest) {
   if (body.status && !validStatuses.includes(body.status)) body.status = "active";
   if (body.ai_status && !validStatuses.includes(body.ai_status)) body.ai_status = "active";
 
+  // Step tracker — surfaced in error response so we know which db.execute
+  // threw without needing Vercel logs.
+  let _step = "init";
+  const _trackedExec = async (
+    step: string,
+    sql: string,
+    args: Array<string | number | null>,
+  ) => {
+    _step = step;
+    return db().execute({ sql, args });
+  };
+
   try {
     const now = new Date().toISOString();
     const today = now.split("T")[0];
@@ -102,20 +114,22 @@ export async function POST(req: NextRequest) {
 
     // Dedup: check if this message was already processed (Meta sends at-least-once)
     if (body.ig_message_id) {
-      const dup = await db().execute({
-        sql: "SELECT id FROM dm_messages WHERE ig_message_id = ? LIMIT 1",
-        args: [body.ig_message_id],
-      });
+      const dup = await _trackedExec(
+        "dedup_check",
+        "SELECT id FROM dm_messages WHERE ig_message_id = ? LIMIT 1",
+        [body.ig_message_id],
+      );
       if (dup.rows.length > 0) {
         return NextResponse.json({ ok: true, deduplicated: true });
       }
     }
 
     // Check if thread exists (to detect status transitions)
-    const existingThread = await db().execute({
-      sql: "SELECT id, ai_status FROM dm_threads WHERE ig_thread_id = ? LIMIT 1",
-      args: [body.ig_thread_id],
-    });
+    const existingThread = await _trackedExec(
+      "thread_lookup",
+      "SELECT id, ai_status FROM dm_threads WHERE ig_thread_id = ? LIMIT 1",
+      [body.ig_thread_id],
+    );
 
     let threadId: string;
     let previousAiStatus: string | null = null;
@@ -126,48 +140,51 @@ export async function POST(req: NextRequest) {
       previousAiStatus = existing.ai_status;
 
       // Update existing thread (atomic message_count increment)
-      await db().execute({
-        sql: `UPDATE dm_threads SET
+      await _trackedExec(
+        "thread_update",
+        `UPDATE dm_threads SET
           ig_user_id = ?, username = ?, display_name = ?,
           avatar_initial = ?, avatar_color = ?,
           ai_status = ?, last_message = ?, last_timestamp = ?,
           pending_ai_draft = ?, message_count = message_count + 1, updated_at = ?
           WHERE id = ?`,
-        args: [
+        [
           body.ig_user_id, body.username, body.display_name || body.username,
           avatarInitial, avatarColor,
           body.ai_status || "active", body.message, now,
-          body.pending_ai_draft, now, threadId,
+          body.pending_ai_draft ?? null, now, threadId,
         ],
-      });
+      );
     } else {
       // Insert new thread
       threadId = generateId();
-      await db().execute({
-        sql: `INSERT INTO dm_threads (id, account_id, ig_thread_id, ig_user_id, username, display_name,
+      await _trackedExec(
+        "thread_insert",
+        `INSERT INTO dm_threads (id, account_id, ig_thread_id, ig_user_id, username, display_name,
           avatar_initial, avatar_color, status, ai_status, last_message, last_timestamp,
           pending_ai_draft, message_count, created_at, updated_at)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
-        args: [
+        [
           threadId, body.account_id, body.ig_thread_id, body.ig_user_id,
           body.username, body.display_name || body.username,
           avatarInitial, avatarColor,
           body.status || "active", body.ai_status || "active",
-          body.message, now, body.pending_ai_draft, now, now,
+          body.message, now, body.pending_ai_draft ?? null, now, now,
         ],
-      });
+      );
     }
 
     // Insert message
-    await db().execute({
-      sql: `INSERT INTO dm_messages (id, thread_id, account_id, ig_message_id, direction, content, sent_at, is_ai, override)
+    await _trackedExec(
+      "message_insert",
+      `INSERT INTO dm_messages (id, thread_id, account_id, ig_message_id, direction, content, sent_at, is_ai, override)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-      args: [
+      [
         generateId(), threadId, body.account_id,
         body.ig_message_id || null, body.direction, body.message, now,
         body.is_ai ? 1 : 0,
       ],
-    });
+    );
 
     // Atomic daily stats upsert (INSERT ... ON CONFLICT ... DO UPDATE)
     // Stats only increment on status TRANSITIONS, not every message
@@ -179,8 +196,9 @@ export async function POST(req: NextRequest) {
     const autoSentInc = body.direction === "outbound" && body.is_ai ? 1 : 0;
     const aiDraftInc = body.pending_ai_draft ? 1 : 0;
 
-    await db().execute({
-      sql: `INSERT INTO daily_stats (id, account_id, date, total_handled, qualified, booked, closed, revenue, replies_received, deals_progressed, auto_sent, ai_drafts)
+    await _trackedExec(
+      "daily_stats_upsert",
+      `INSERT INTO daily_stats (id, account_id, date, total_handled, qualified, booked, closed, revenue, replies_received, deals_progressed, auto_sent, ai_drafts)
         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?)
         ON CONFLICT(account_id, date) DO UPDATE SET
           total_handled = total_handled + excluded.total_handled,
@@ -190,11 +208,12 @@ export async function POST(req: NextRequest) {
           replies_received = replies_received + excluded.replies_received,
           auto_sent = auto_sent + excluded.auto_sent,
           ai_drafts = ai_drafts + excluded.ai_drafts`,
-      args: [
+      [
         generateId(), body.account_id, today,
-        isInbound, qualifiedInc, bookedInc, closedInc, isInbound, autoSentInc, aiDraftInc,
+        Number(isInbound), Number(qualifiedInc), Number(bookedInc), Number(closedInc),
+        Number(isInbound), Number(autoSentInc), Number(aiDraftInc),
       ],
-    });
+    );
 
     // Upsert subscriber (keep ManyChat-style subscriber list in sync)
     try {
@@ -320,6 +339,7 @@ export async function POST(req: NextRequest) {
       {
         ok: false,
         error: "internal",
+        step: _step,
         message: msg.slice(0, 300),
         stack: stack.slice(0, 600),
         auto_send_enabled: autoSendOnFailure,
