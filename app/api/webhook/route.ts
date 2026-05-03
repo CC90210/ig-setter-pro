@@ -301,9 +301,33 @@ export async function POST(req: NextRequest) {
       doctrine: doctrineResult,
     });
   } catch (err) {
+    const msg = err instanceof Error ? `${err.message}` : String(err);
     console.error("[webhook] Unhandled error:", err);
-    // Return 200 so Meta doesn't disable the webhook subscription
-    return NextResponse.json({ ok: false, error: "internal" }, { status: 200 });
+    // Even on internal failure, surface the auto_send flag so the Python
+    // daemon can decide whether to send anyway (it has a local fallback
+    // reply path). Returning 200 so Meta doesn't disable the subscription.
+    let autoSendOnFailure = false;
+    try {
+      if (body.account_id) {
+        const acctResult = await db().execute({
+          sql: "SELECT auto_send_enabled FROM accounts WHERE id = ? LIMIT 1",
+          args: [body.account_id],
+        });
+        if (acctResult.rows.length > 0) {
+          autoSendOnFailure = !!(acctResult.rows[0] as unknown as { auto_send_enabled: number }).auto_send_enabled;
+        }
+      }
+    } catch {}
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "internal",
+        message: msg.slice(0, 300),
+        auto_send_enabled: autoSendOnFailure,
+        doctrine: null,
+      },
+      { status: 200 }
+    );
   }
 }
 
