@@ -59,9 +59,12 @@ export async function runDoctrine(input: DoctrineInput): Promise<DoctrineResult>
   const isFriend = input.forceFriend !== undefined ? input.forceFriend : !!thread.is_friend;
 
   // ── Load recent messages (PRIOR history only — strip current inbound if already persisted) ─
+  // Pull 30 messages (~15 turns) so multi-day conversations retain their
+  // arc. Anthropic prompt token budget easily fits this — average DM is
+  // <40 tokens, so 30 messages ≈ 1200 tokens of history.
   const msgsRes = await db().execute({
     sql: `SELECT direction, content FROM dm_messages
-          WHERE thread_id = ? ORDER BY sent_at DESC LIMIT 13`,
+          WHERE thread_id = ? ORDER BY sent_at DESC LIMIT 30`,
     args: [input.threadId],
   });
   const all = (msgsRes.rows as unknown as Array<{ direction: "inbound" | "outbound"; content: string }>)
