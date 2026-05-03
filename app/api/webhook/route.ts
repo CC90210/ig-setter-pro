@@ -302,10 +302,8 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     const msg = err instanceof Error ? `${err.message}` : String(err);
+    const stack = err instanceof Error ? (err.stack || "").split("\n").slice(0, 4).join(" | ") : "";
     console.error("[webhook] Unhandled error:", err);
-    // Even on internal failure, surface the auto_send flag so the Python
-    // daemon can decide whether to send anyway (it has a local fallback
-    // reply path). Returning 200 so Meta doesn't disable the subscription.
     let autoSendOnFailure = false;
     try {
       if (body.account_id) {
@@ -323,6 +321,7 @@ export async function POST(req: NextRequest) {
         ok: false,
         error: "internal",
         message: msg.slice(0, 300),
+        stack: stack.slice(0, 600),
         auto_send_enabled: autoSendOnFailure,
         doctrine: null,
       },
