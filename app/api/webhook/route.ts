@@ -112,7 +112,11 @@ export async function POST(req: NextRequest) {
     const avatarColor = usernameToColor(body.username);
     const avatarInitial = (body.username || "?")[0].toUpperCase();
 
-    // Dedup: check if this message was already processed (Meta sends at-least-once)
+    // Dedup: check if this message was already processed (Meta sends at-least-once,
+    // and the Python daemon re-pushes catch-up bursts on every poll until the
+    // thread is marked replied). The dedup response MUST still include the
+    // account-level auto_send_enabled flag — otherwise the daemon defaults
+    // to OFF on every dedup'd inbound and never replies.
     if (body.ig_message_id) {
       const dup = await _trackedExec(
         "dedup_check",
@@ -120,7 +124,35 @@ export async function POST(req: NextRequest) {
         [body.ig_message_id],
       );
       if (dup.rows.length > 0) {
-        return NextResponse.json({ ok: true, deduplicated: true });
+        let dupAutoSend = false;
+        let dupDraft: { draft: string } | null = null;
+        try {
+          if (body.account_id) {
+            const acctResult = await db().execute({
+              sql: "SELECT auto_send_enabled FROM accounts WHERE id = ? LIMIT 1",
+              args: [body.account_id],
+            });
+            if (acctResult.rows.length > 0) {
+              dupAutoSend = !!(acctResult.rows[0] as unknown as { auto_send_enabled: number }).auto_send_enabled;
+            }
+          }
+          // Also surface the existing pending_ai_draft so the daemon can use it
+          // even when the inbound was already processed.
+          const threadRes = await db().execute({
+            sql: "SELECT pending_ai_draft FROM dm_threads WHERE ig_thread_id = ? LIMIT 1",
+            args: [body.ig_thread_id],
+          });
+          if (threadRes.rows.length > 0) {
+            const draft = (threadRes.rows[0] as unknown as { pending_ai_draft: string | null }).pending_ai_draft;
+            if (draft) dupDraft = { draft };
+          }
+        } catch {}
+        return NextResponse.json({
+          ok: true,
+          deduplicated: true,
+          auto_send_enabled: dupAutoSend,
+          doctrine: dupDraft,
+        });
       }
     }
 
